@@ -1,0 +1,93 @@
+"""Global file/project context (UI-2).
+
+One workspace per window: the loaded `.m` (and optional `.sv`), the
+WIDTH/SCALE format, and the audit derived from them. Every view reacts to
+its signals; selection is shared so views stay synchronized (VZ-2).
+"""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+from PyQt6.QtCore import QObject, pyqtSignal
+
+from pipeforge.core.audit.engine import Audit, audit_source
+from pipeforge.core.costmodel.model import CostModel
+
+
+class Workspace(QObject):
+    auditChanged = pyqtSignal(object)  # Audit | None
+    fileChanged = pyqtSignal(str)  # path ('' when cleared)
+    formatChanged = pyqtSignal(int, int)  # width, scale
+    selectionChanged = pyqtSignal(str)  # DAG node id ('' = cleared)
+    problem = pyqtSignal(str)  # user-facing, non-fatal (NF-4 toast)
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.width = 16
+        self.scale = 12
+        self.m_path: Path | None = None
+        self.sv_path: Path | None = None
+        self.source = ""
+        self.audit: Audit | None = None
+        self.selected_node = ""
+
+    @property
+    def cost_model(self) -> CostModel:
+        return CostModel(self.width, self.scale)
+
+    # -- loading -----------------------------------------------------------
+
+    def open_file(self, path: Path) -> None:
+        """Open a .m (audits it) or a companion .sv. Never raises (NF-4)."""
+        try:
+            if path.suffix.lower() == ".sv":
+                self.sv_path = path
+                self.fileChanged.emit(str(path))
+                return
+            text = path.read_text(encoding="utf-8", errors="replace")
+        except OSError as exc:
+            self.problem.emit(f"Cannot open {path.name}: {exc.strerror or exc}")
+            return
+        self.m_path = path
+        self.source = text
+        sv = path.with_suffix(".sv")
+        if sv.is_file():
+            self.sv_path = sv
+        self.fileChanged.emit(str(path))
+        self._reaudit()
+
+    def set_format(self, width: int, scale: int) -> None:
+        """WIDTH/SCALE are workspace-level; all views react live (UI-2)."""
+        try:
+            CostModel(width, scale)
+        except ValueError as exc:
+            self.problem.emit(str(exc))
+            return
+        if (width, scale) == (self.width, self.scale):
+            return
+        self.width = width
+        self.scale = scale
+        self.formatChanged.emit(width, scale)
+        self._reaudit()
+
+    def rerun(self) -> None:
+        """Re-run the current analysis (UI-4, Ctrl+R)."""
+        self._reaudit()
+
+    def _reaudit(self) -> None:
+        if self.m_path is None:
+            return
+        try:
+            self.audit = audit_source(self.source, self.m_path.name, self.cost_model)
+        except Exception as exc:
+            self.audit = None
+            self.problem.emit(f"Audit failed: {exc}")
+        self.auditChanged.emit(self.audit)
+
+    # -- selection (VZ-2) ----------------------------------------------------
+
+    def select_node(self, nid: str) -> None:
+        if nid != self.selected_node:
+            self.selected_node = nid
+            self.selectionChanged.emit(nid)
