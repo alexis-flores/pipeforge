@@ -78,7 +78,15 @@ def _eval_fixed_node(
             return [from_float(float(node.label), fmt)]
         except ValueError as exc:
             raise EvalError(f"non-numeric const '{node.label}'") from exc
-    args = [values[a] for a in node.args]
+    return apply_fixed(node, [values[a] for a in node.args], fmt)
+
+
+def apply_fixed(node: Node, args: list[FixedVec], fmt: FxFormat) -> FixedVec:
+    """Recompute one non-leaf node from explicit argument values.
+
+    Shared by the evaluator and bisection (which replays a stage with
+    shifted operand streams to classify delay-skew bugs, BI-2).
+    """
     mod = node.module
     if mod == "":
         # wiring: index/range/concat/wire — pass-through semantics

@@ -78,11 +78,20 @@ class Dag:
         return [self.nodes[i] for i in self.order if self.nodes[i].module == "input"]
 
     def outputs(self) -> list[Node]:
-        """Final definition node of each assigned variable."""
+        """Pipeline outputs: final variable definitions nothing else consumes.
+
+        Mirrors the nkMatlib convention that only terminal signals become
+        ``_N`` ports. Falls back to the last statement if everything is
+        consumed.
+        """
         last_def: dict[str, str] = {}
         for s in self.statements:
             last_def[s.target] = s.root
-        return [self.nodes[nid] for nid in last_def.values()]
+        consumed = self.consumers()
+        outs = [nid for nid in last_def.values() if consumed.get(nid, 0) == 0]
+        if not outs and self.statements:
+            outs = [self.statements[-1].root]
+        return [self.nodes[nid] for nid in outs]
 
 
 class DagBuilder:

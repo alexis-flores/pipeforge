@@ -79,6 +79,57 @@ def _cmd_lint(args: argparse.Namespace) -> int:
     return 1 if result.findings else 0
 
 
+def _cmd_cosim(args: argparse.Namespace) -> int:
+    import json as json_mod
+
+    from pipeforge.core.audit.engine import audit_source
+    from pipeforge.core.cosim.runner import CosimUnavailable, run_cosim
+    from pipeforge.core.costmodel.model import CostModel
+
+    m_path = Path(args.file)
+    try:
+        src = m_path.read_text(encoding="utf-8")
+    except OSError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    cm = CostModel(args.width, args.scale)
+    audit = audit_source(src, m_path.name, cm)
+    work_dir = Path(args.work_dir) if args.work_dir else m_path.parent / "cosim_work"
+    try:
+        result = run_cosim(
+            audit,
+            dut_sv=Path(args.sv),
+            dut_module=args.top,
+            work_dir=work_dir,
+            extra_sources=[Path(p) for p in (args.source or [])],
+            include_dirs=[Path(p) for p in (args.include or [])],
+            vector_count=args.vectors,
+        )
+    except CosimUnavailable as exc:
+        print(str(exc), file=sys.stderr)
+        return 3
+    if args.json:
+        print(json_mod.dumps(result.to_payload(), indent=2))
+    else:
+        verdict = "PASS" if result.passed else "FAIL"
+        print(f"cosim {m_path.name} vs {args.top}: {verdict}")
+        for o in result.outputs:
+            if o.passed:
+                print(
+                    f"  {o.name}: {o.compared} vectors bit-exact — "
+                    f"max|e|={o.max_abs_error:.3g} rms={o.rms_error:.3g} "
+                    f"SQNR={o.sqnr_db:.1f} dB"
+                )
+            else:
+                print(
+                    f"  {o.name}: first failing vector #{o.first_failure} "
+                    f"(expected 0x{o.expected:x}, got 0x{o.actual:x})"
+                )
+        if not result.passed and not result.outputs:
+            print("  build or simulation failed; see the log in " + result.work_dir)
+    return 0 if result.passed else 1
+
+
 def _add_fixedp_args(p: argparse.ArgumentParser) -> None:
     p.add_argument("-w", "--width", type=int, default=16, help="fixedp WIDTH (default 16)")
     p.add_argument("-s", "--scale", type=int, default=12, help="fixedp SCALE (default 12)")
@@ -116,6 +167,24 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_lint.add_argument("--json", action="store_true", help="emit JSON instead of text")
     p_lint.set_defaults(func=_cmd_lint)
+
+    p_cosim = sub.add_parser(
+        "cosim", help="co-simulate RTL against the bit-exact golden model (needs Verilator)"
+    )
+    p_cosim.add_argument("file", help="MATLAB script (.m)")
+    p_cosim.add_argument("--sv", required=True, help="SystemVerilog DUT file")
+    p_cosim.add_argument("--top", required=True, help="DUT module name")
+    p_cosim.add_argument(
+        "--source", action="append", metavar="SV", help="additional SV source (repeatable)"
+    )
+    p_cosim.add_argument(
+        "--include", action="append", metavar="DIR", help="include directory (repeatable)"
+    )
+    p_cosim.add_argument("--vectors", type=int, default=256, help="stimulus vector count")
+    p_cosim.add_argument("--work-dir", help="working directory for generated collateral")
+    _add_fixedp_args(p_cosim)
+    p_cosim.add_argument("--json", action="store_true", help="emit JSON instead of text")
+    p_cosim.set_defaults(func=_cmd_cosim)
 
     return parser
 
