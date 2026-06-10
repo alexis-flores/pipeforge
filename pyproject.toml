@@ -1,0 +1,81 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pipeforge"
+version = "0.1.0"
+description = "MATLAB-to-nkMatlib FPGA pipeline workbench: audit, verify, visualize, generate"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "A. Flores" }]
+dependencies = [
+    "numpy>=1.26",
+    "PyQt6>=6.6",
+    "pyqtgraph>=0.13",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8",
+    "pytest-cov",
+    "pytest-qt",
+    "hypothesis>=6",
+    "ruff",
+    "mypy",
+]
+
+[project.scripts]
+pipeforge-cli = "pipeforge.cli:main"
+
+[project.gui-scripts]
+pipeforge = "pipeforge.gui.app:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+"pipeforge.gui.theme" = ["themes/*.json"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+src = ["src", "tests"]
+exclude = ["seed"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM", "RUF"]
+ignore = [
+    "SIM108", # ternary not always clearer
+    "SIM102", # nested ifs are sometimes clearer
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["B011"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+files = ["src/pipeforge/core"]
+warn_unreachable = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
+markers = [
+    "tool(name): test requires an external tool (verilator, cocotb, pyslang, dot, yosys)",
+    "perf: performance tests (NF-1, NF-2, NF-3)",
+    "req(id): SRS requirement covered by this test (for docs/rtm.csv)",
+]
+
+[tool.coverage.run]
+source = ["src/pipeforge"]
+omit = ["src/pipeforge/gui/app.py"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+]

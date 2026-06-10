@@ -1,0 +1,27 @@
+{
+  "name": "Gruvbox Light",
+  "dark": false,
+  "tokens": {
+    "bg": "#f2e5bc",
+    "surface": "#ebdbb2",
+    "surfaceElevated": "#d5c4a1",
+    "border": "#bdae93",
+    "textPrimary": "#3c3836",
+    "textSecondary": "#665c54",
+    "textDisabled": "#928374",
+    "accent": "#689d6a",
+    "accentMuted": "#8ec07c",
+    "success": "#98971a",
+    "warning": "#d79921",
+    "error": "#cc241d",
+    "criticalPath": "#cc241d",
+    "divider": "#d65d0e",
+    "selection": "#d5c4a1",
+    "focusRing": "#458588",
+    "consoleBg": "#fbf1c7",
+    "consoleFg": "#504945",
+    "plotBg": "#fbf1c7",
+    "plotGrid": "#d5c4a1"
+  },
+  "chartSeries": ["#689d6a", "#458588", "#d79921", "#b16286", "#d65d0e", "#98971a"]
+}

@@ -1,0 +1,27 @@
+{
+  "name": "High Contrast",
+  "dark": true,
+  "tokens": {
+    "bg": "#000000",
+    "surface": "#101010",
+    "surfaceElevated": "#202020",
+    "border": "#808080",
+    "textPrimary": "#ffffff",
+    "textSecondary": "#d0d0d0",
+    "textDisabled": "#909090",
+    "accent": "#00e5ff",
+    "accentMuted": "#0097a7",
+    "success": "#00ff6a",
+    "warning": "#ffd600",
+    "error": "#ff1744",
+    "criticalPath": "#ff1744",
+    "divider": "#ff9100",
+    "selection": "#264f78",
+    "focusRing": "#00e5ff",
+    "consoleBg": "#000000",
+    "consoleFg": "#e0e0e0",
+    "plotBg": "#000000",
+    "plotGrid": "#404040"
+  },
+  "chartSeries": ["#00e5ff", "#00ff6a", "#ffd600", "#ff4081", "#ff9100", "#76ff03"]
+}

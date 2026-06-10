@@ -1,0 +1,27 @@
+{
+  "name": "Gruvbox Dark Soft",
+  "dark": true,
+  "tokens": {
+    "bg": "#32302f",
+    "surface": "#3c3836",
+    "surfaceElevated": "#504945",
+    "border": "#665c54",
+    "textPrimary": "#ebdbb2",
+    "textSecondary": "#bdae93",
+    "textDisabled": "#928374",
+    "accent": "#8ec07c",
+    "accentMuted": "#689d6a",
+    "success": "#b8bb26",
+    "warning": "#fabd2f",
+    "error": "#fb4934",
+    "criticalPath": "#fb4934",
+    "divider": "#fe8019",
+    "selection": "#504945",
+    "focusRing": "#83a598",
+    "consoleBg": "#282828",
+    "consoleFg": "#d5c4a1",
+    "plotBg": "#282828",
+    "plotGrid": "#504945"
+  },
+  "chartSeries": ["#8ec07c", "#83a598", "#fabd2f", "#d3869b", "#fe8019", "#b8bb26"]
+}
