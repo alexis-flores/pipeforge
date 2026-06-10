@@ -25,6 +25,7 @@ class Instance:
     name: str
     conns: dict[str, str]  # port -> connected expression (trimmed)
     line: int
+    params: dict[str, str] = field(default_factory=dict)  # #(.NAME(value)) overrides
 
 
 @dataclass(frozen=True)

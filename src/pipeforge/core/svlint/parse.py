@@ -18,9 +18,10 @@ _PIPE_RE = re.compile(r"`PIPE\(\s*(\w+)\s*,\s*([^,]*?)\s*,\s*(\w+)\s*,\s*(\d+)\s
 _MODULE_RE = re.compile(r"\bmodule\s+(\w+)\s*(?:#\s*\(.*?\))?\s*\((.*?)\)\s*;", re.DOTALL)
 _PORT_RE = re.compile(r"\b(input|output|fixedp)\b[^,()]*?(\w+)\s*(?:,|$)")
 _INSTANCE_RE = re.compile(
-    r"\b(\w+)\s*(?:#\s*\([^;]*?\))?\s+(\w+)\s*\(\s*((?:\.\w+\s*\([^()]*\)\s*,?\s*)+)\)\s*;",
+    r"\b(\w+)\s*(#\s*\([^;]*?\))?\s+(\w+)\s*\(\s*((?:\.\w+\s*\([^()]*\)\s*,?\s*)+)\)\s*;",
     re.DOTALL,
 )
+_PARAMS_RE = re.compile(r"#\s*\((.*?)\)\s*\w+\s*\(", re.DOTALL)
 _CONN_RE = re.compile(r"\.(\w+)\s*\(\s*([^()]*?)\s*\)")
 _ASSIGN_RE = re.compile(r"\bassign\s+(\w+)\s*=\s*([^;]+);")
 
@@ -82,12 +83,21 @@ def parse_structural(text: str) -> SvModule:
     body = clean[header.end() :]
     body_offset = header.end()
     for im in _INSTANCE_RE.finditer(body):
-        mod_name, inst_name = im.group(1), im.group(2)
+        mod_name, inst_name = im.group(1), im.group(3)
         if mod_name in _SV_KEYWORDS:
             continue
-        conns = {c.group(1): c.group(2).strip() for c in _CONN_RE.finditer(im.group(3))}
+        conns = {c.group(1): c.group(2).strip() for c in _CONN_RE.finditer(im.group(4))}
+        params: dict[str, str] = {}
+        if im.group(2):
+            params = {c.group(1): c.group(2).strip() for c in _CONN_RE.finditer(im.group(2))}
         module.instances.append(
-            Instance(mod_name, inst_name, conns, _line_of(clean, body_offset + im.start()))
+            Instance(
+                mod_name,
+                inst_name,
+                conns,
+                _line_of(clean, body_offset + im.start()),
+                params,
+            )
         )
     for am in _ASSIGN_RE.finditer(body):
         module.assigns.append(
@@ -170,10 +180,14 @@ def _pyslang_module(node: object, text: str) -> SvModule:
                 line = text.count("\n", 0, pos) + 1
             except ValueError:
                 pass
+            params: dict[str, str] = {}
+            pm = _PARAMS_RE.search(inst_text)
+            if pm:
+                params = {c.group(1): c.group(2).strip() for c in _CONN_RE.finditer(pm.group(1))}
             for inst in child.instances:  # type: ignore[attr-defined]
                 inst_name = str(inst.decl.name.valueText)
                 conns = {c.group(1): c.group(2).strip() for c in _CONN_RE.finditer(str(inst))}
-                module.instances.append(Instance(mod_name, inst_name, conns, line))
+                module.instances.append(Instance(mod_name, inst_name, conns, line, params))
         elif kind_name.endswith("ContinuousAssign"):
             for am in _ASSIGN_RE.finditer(str(child)):
                 line = 1

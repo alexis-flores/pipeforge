@@ -114,6 +114,9 @@ def _propagate(module: SvModule, cm: CostModel) -> tuple[dict[str, int], list[Li
             if inst.module in PIPE_MODULES:
                 # explicit pipe instance: i -> o with the module's delay
                 lat = pipe_latency(inst.module, cm)
+                delay_param = inst.params.get("DELAY", "")
+                if delay_param.isdigit():
+                    lat = int(delay_param)
                 src = inst.conns.get("i", "")
                 dst = inst.conns.get("o", "")
                 if lat is not None and _is_signal_ref(src) and src in cycles and dst:

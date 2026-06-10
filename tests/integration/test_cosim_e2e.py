@@ -51,3 +51,38 @@ def test_known_good_pair_passes_cosim(tmp_path: Path) -> None:
     assert all(o.passed for o in result.outputs)
     payload = result.to_payload()
     assert payload["passed"] is True
+
+
+@pytest.mark.tool("verilator")
+@requires_tools
+@pytest.mark.req("CG-3")
+def test_generated_rtl_passes_cosim(tmp_path: Path) -> None:
+    """Full loop closure: parse -> generate -> simulate -> match (CG-3)."""
+    from pipeforge.core.codegen.emitter import generate_sv
+    from pipeforge.core.cosim.runner import run_cosim
+
+    src = (FIXTURES / "sample.m").read_text(encoding="utf-8")
+    audit = audit_source(src, "sample.m", CostModel(16, 12))
+    generated = tmp_path / "gen_sample.sv"
+    generated.write_text(generate_sv(audit, "gen_sample"), encoding="utf-8")
+    needed = [
+        "fixedp.sv",
+        "elem_smul.sv",
+        "smul.sv",
+        "smul_raw.sv",
+        "norm.sv",
+        "matadd.sv",
+        "add.sv",
+        "pipe.sv",
+        "valid.sv",
+    ]
+    result = run_cosim(
+        audit,
+        dut_sv=generated,
+        dut_module="gen_sample",
+        work_dir=tmp_path / "cosim",
+        extra_sources=[MATLIB_RTL / name for name in needed],
+        include_dirs=[MATLIB_RTL],
+        vector_count=128,
+    )
+    assert result.passed, result.log[-3000:]

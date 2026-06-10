@@ -130,6 +130,33 @@ def _cmd_cosim(args: argparse.Namespace) -> int:
     return 0 if result.passed else 1
 
 
+def _cmd_codegen(args: argparse.Namespace) -> int:
+    from pipeforge.core.audit.engine import audit_source
+    from pipeforge.core.codegen.emitter import CodegenError, generate_sv
+    from pipeforge.core.costmodel.model import CostModel
+
+    path = Path(args.file)
+    try:
+        src = path.read_text(encoding="utf-8")
+    except OSError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    cm = CostModel(args.width, args.scale)
+    audit = audit_source(src, path.name, cm)
+    module = args.module or path.stem
+    try:
+        sv = generate_sv(audit, module)
+    except CodegenError as exc:
+        print(f"cannot generate: {exc}", file=sys.stderr)
+        return 1
+    if args.output:
+        Path(args.output).write_text(sv, encoding="utf-8")
+        print(f"wrote {args.output}")
+    else:
+        print(sv, end="")
+    return 0
+
+
 def _add_fixedp_args(p: argparse.ArgumentParser) -> None:
     p.add_argument("-w", "--width", type=int, default=16, help="fixedp WIDTH (default 16)")
     p.add_argument("-s", "--scale", type=int, default=12, help="fixedp SCALE (default 12)")
@@ -185,6 +212,15 @@ def build_parser() -> argparse.ArgumentParser:
     _add_fixedp_args(p_cosim)
     p_cosim.add_argument("--json", action="store_true", help="emit JSON instead of text")
     p_cosim.set_defaults(func=_cmd_cosim)
+
+    p_gen = sub.add_parser(
+        "codegen", help="emit an nkMatlib SystemVerilog skeleton from a MATLAB script"
+    )
+    p_gen.add_argument("file", help="MATLAB script (.m)")
+    p_gen.add_argument("-m", "--module", help="generated module name (default: file stem)")
+    p_gen.add_argument("-o", "--output", help="write to file instead of stdout")
+    _add_fixedp_args(p_gen)
+    p_gen.set_defaults(func=_cmd_codegen)
 
     return parser
 
