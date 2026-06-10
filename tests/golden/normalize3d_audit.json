@@ -1,0 +1,293 @@
+{
+  "tool": "matlib_audit",
+  "version": "1.0",
+  "file": "normalize3d.m",
+  "width": 16,
+  "scale": 12,
+  "left": 4,
+  "latencies": {
+    "ADD": 1,
+    "MUL": 4,
+    "DIV": 28,
+    "SQRT": 14,
+    "MATMUL": 5,
+    "SUMSQR": 5,
+    "ROOTSQR": 19,
+    "CROSSP": 5
+  },
+  "statements": [
+    {
+      "line": 2,
+      "target": "n2",
+      "ready": 6,
+      "lat": 6,
+      "root": "n008"
+    },
+    {
+      "line": 3,
+      "target": "n",
+      "ready": 20,
+      "lat": 14,
+      "root": "n009"
+    },
+    {
+      "line": 4,
+      "target": "ux",
+      "ready": 48,
+      "lat": 28,
+      "root": "n010"
+    },
+    {
+      "line": 5,
+      "target": "uy",
+      "ready": 48,
+      "lat": 28,
+      "root": "n011"
+    },
+    {
+      "line": 6,
+      "target": "uz",
+      "ready": 48,
+      "lat": 28,
+      "root": "n012"
+    }
+  ],
+  "critical_path": {
+    "total": 48,
+    "chain": [
+      {
+        "id": "n001",
+        "cycle": 0,
+        "line": 2,
+        "label": "x",
+        "module": "input",
+        "lat": 0
+      },
+      {
+        "id": "n002",
+        "cycle": 4,
+        "line": 2,
+        "label": "(x .* x)",
+        "module": "elem_smul",
+        "lat": 4
+      },
+      {
+        "id": "n005",
+        "cycle": 5,
+        "line": 2,
+        "label": "((x .* x) + (y .* y))",
+        "module": "matadd",
+        "lat": 1
+      },
+      {
+        "id": "n008",
+        "cycle": 6,
+        "line": 2,
+        "label": "(((x .* x) + (y .* y)) + (z .* z))",
+        "module": "matadd",
+        "lat": 1
+      },
+      {
+        "id": "n009",
+        "cycle": 20,
+        "line": 3,
+        "label": "sqrt(n2)",
+        "module": "elem_usqrt",
+        "lat": 14
+      },
+      {
+        "id": "n010",
+        "cycle": 48,
+        "line": 4,
+        "label": "(x ./ n)",
+        "module": "elem_sdiv",
+        "lat": 28
+      }
+    ]
+  },
+  "census": {
+    "elem_sdiv": 3,
+    "elem_smul": 3,
+    "elem_usqrt": 1,
+    "matadd": 2
+  },
+  "instances": 9,
+  "dividers": 3,
+  "findings": [
+    {
+      "tag": "FUSE",
+      "line": 2,
+      "savings": 1,
+      "message": "chained adds '(((x .* x) + (y .* y)) + (z .* z))'",
+      "suggestion": "fuse into one matadd3: saves 1 cycle of pipeline depth"
+    },
+    {
+      "tag": "RECIP",
+      "line": 4,
+      "savings": 48,
+      "message": "3 divisions share divisor 'n'",
+      "suggestion": "compute r = 1/n once (elem_sinv) and multiply by r (elem_smul): 2 fewer dividers, 48 cycles of divider depth removed"
+    }
+  ],
+  "skipped": [],
+  "nodes": [
+    {
+      "id": "n001",
+      "module": "input",
+      "op": "input",
+      "lat": 0,
+      "ready": 0,
+      "args": [],
+      "line": 2,
+      "signal": "",
+      "label": "x"
+    },
+    {
+      "id": "n002",
+      "module": "elem_smul",
+      "op": ".*",
+      "lat": 4,
+      "ready": 4,
+      "args": [
+        "n001",
+        "n001"
+      ],
+      "line": 2,
+      "signal": "",
+      "label": "(x .* x)"
+    },
+    {
+      "id": "n003",
+      "module": "input",
+      "op": "input",
+      "lat": 0,
+      "ready": 0,
+      "args": [],
+      "line": 2,
+      "signal": "",
+      "label": "y"
+    },
+    {
+      "id": "n004",
+      "module": "elem_smul",
+      "op": ".*",
+      "lat": 4,
+      "ready": 4,
+      "args": [
+        "n003",
+        "n003"
+      ],
+      "line": 2,
+      "signal": "",
+      "label": "(y .* y)"
+    },
+    {
+      "id": "n005",
+      "module": "matadd",
+      "op": "+",
+      "lat": 1,
+      "ready": 5,
+      "args": [
+        "n002",
+        "n004"
+      ],
+      "line": 2,
+      "signal": "",
+      "label": "((x .* x) + (y .* y))"
+    },
+    {
+      "id": "n006",
+      "module": "input",
+      "op": "input",
+      "lat": 0,
+      "ready": 0,
+      "args": [],
+      "line": 2,
+      "signal": "",
+      "label": "z"
+    },
+    {
+      "id": "n007",
+      "module": "elem_smul",
+      "op": ".*",
+      "lat": 4,
+      "ready": 4,
+      "args": [
+        "n006",
+        "n006"
+      ],
+      "line": 2,
+      "signal": "",
+      "label": "(z .* z)"
+    },
+    {
+      "id": "n008",
+      "module": "matadd",
+      "op": "+",
+      "lat": 1,
+      "ready": 6,
+      "args": [
+        "n005",
+        "n007"
+      ],
+      "line": 2,
+      "signal": "n2",
+      "label": "(((x .* x) + (y .* y)) + (z .* z))"
+    },
+    {
+      "id": "n009",
+      "module": "elem_usqrt",
+      "op": "sqrt",
+      "lat": 14,
+      "ready": 20,
+      "args": [
+        "n008"
+      ],
+      "line": 3,
+      "signal": "n",
+      "label": "sqrt(n2)"
+    },
+    {
+      "id": "n010",
+      "module": "elem_sdiv",
+      "op": "/",
+      "lat": 28,
+      "ready": 48,
+      "args": [
+        "n001",
+        "n009"
+      ],
+      "line": 4,
+      "signal": "ux",
+      "label": "(x ./ n)"
+    },
+    {
+      "id": "n011",
+      "module": "elem_sdiv",
+      "op": "/",
+      "lat": 28,
+      "ready": 48,
+      "args": [
+        "n003",
+        "n009"
+      ],
+      "line": 5,
+      "signal": "uy",
+      "label": "(y ./ n)"
+    },
+    {
+      "id": "n012",
+      "module": "elem_sdiv",
+      "op": "/",
+      "lat": 28,
+      "ready": 48,
+      "args": [
+        "n006",
+        "n009"
+      ],
+      "line": 6,
+      "signal": "uz",
+      "label": "(z ./ n)"
+    }
+  ]
+}

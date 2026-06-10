@@ -1,0 +1,23 @@
+matlib_audit 1.0 — nkMatlib latency audit
+file: feedback.m
+fixedp: WIDTH=16 SCALE=12 LEFT=4
+latencies: ADD=1 MUL=4 DIV=28 SQRT=14 MATMUL=5 SUMSQR=5 ROOTSQR=19 CROSSP=5
+
+== statements ==
+  line   3  acc          ready @    5  (+5)
+
+== critical path ==  total 5 cycles
+  @    0  line   3  x                                      input        
+  @    4  line   3  (x .* g0)                              elem_smul    +4
+  @    5  line   3  (acc + (x .* g0))                      matadd       +1
+
+== operator census ==  (2 instances, 0 dividers)
+  elem_smul      x 1
+  matadd         x 1
+
+== findings ==
+  [FEEDBACK] line 3: 'acc' feeds back into itself: loop initiation interval is 1 cycles
+             -> a new iteration can start only every 1 cycles; shorten the feedback path or restructure the recurrence
+
+== skipped ==
+  (none)

@@ -1,0 +1,34 @@
+matlib_audit 1.0 — nkMatlib latency audit
+file: normalize3d.m
+fixedp: WIDTH=16 SCALE=12 LEFT=4
+latencies: ADD=1 MUL=4 DIV=28 SQRT=14 MATMUL=5 SUMSQR=5 ROOTSQR=19 CROSSP=5
+
+== statements ==
+  line   2  n2           ready @    6  (+6)
+  line   3  n            ready @   20  (+14)
+  line   4  ux           ready @   48  (+28)
+  line   5  uy           ready @   48  (+28)
+  line   6  uz           ready @   48  (+28)
+
+== critical path ==  total 48 cycles
+  @    0  line   2  x                                      input        
+  @    4  line   2  (x .* x)                               elem_smul    +4
+  @    5  line   2  ((x .* x) + (y .* y))                  matadd       +1
+  @    6  line   2  (((x .* x) + (y .* y)) + (z .* z))     matadd       +1
+  @   20  line   3  sqrt(n2)                               elem_usqrt   +14
+  @   48  line   4  (x ./ n)                               elem_sdiv    +28
+
+== operator census ==  (9 instances, 3 dividers)
+  elem_sdiv      x 3   << divider
+  elem_smul      x 3
+  elem_usqrt     x 1
+  matadd         x 2
+
+== findings ==
+  [FUSE    ] line 2: chained adds '(((x .* x) + (y .* y)) + (z .* z))'
+             -> fuse into one matadd3: saves 1 cycle of pipeline depth
+  [RECIP   ] line 4: 3 divisions share divisor 'n'
+             -> compute r = 1/n once (elem_sinv) and multiply by r (elem_smul): 2 fewer dividers, 48 cycles of divider depth removed
+
+== skipped ==
+  (none)

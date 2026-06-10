@@ -1,0 +1,135 @@
+{
+  "tool": "matlib_audit",
+  "version": "1.0",
+  "file": "feedback.m",
+  "width": 16,
+  "scale": 12,
+  "left": 4,
+  "latencies": {
+    "ADD": 1,
+    "MUL": 4,
+    "DIV": 28,
+    "SQRT": 14,
+    "MATMUL": 5,
+    "SUMSQR": 5,
+    "ROOTSQR": 19,
+    "CROSSP": 5
+  },
+  "statements": [
+    {
+      "line": 3,
+      "target": "acc",
+      "ready": 5,
+      "lat": 5,
+      "root": "n005"
+    }
+  ],
+  "critical_path": {
+    "total": 5,
+    "chain": [
+      {
+        "id": "n002",
+        "cycle": 0,
+        "line": 3,
+        "label": "x",
+        "module": "input",
+        "lat": 0
+      },
+      {
+        "id": "n004",
+        "cycle": 4,
+        "line": 3,
+        "label": "(x .* g0)",
+        "module": "elem_smul",
+        "lat": 4
+      },
+      {
+        "id": "n005",
+        "cycle": 5,
+        "line": 3,
+        "label": "(acc + (x .* g0))",
+        "module": "matadd",
+        "lat": 1
+      }
+    ]
+  },
+  "census": {
+    "elem_smul": 1,
+    "matadd": 1
+  },
+  "instances": 2,
+  "dividers": 0,
+  "findings": [
+    {
+      "tag": "FEEDBACK",
+      "line": 3,
+      "savings": 0,
+      "message": "'acc' feeds back into itself: loop initiation interval is 1 cycles",
+      "suggestion": "a new iteration can start only every 1 cycles; shorten the feedback path or restructure the recurrence"
+    }
+  ],
+  "skipped": [],
+  "nodes": [
+    {
+      "id": "n001",
+      "module": "input",
+      "op": "input",
+      "lat": 0,
+      "ready": 0,
+      "args": [],
+      "line": 3,
+      "signal": "",
+      "label": "acc"
+    },
+    {
+      "id": "n002",
+      "module": "input",
+      "op": "input",
+      "lat": 0,
+      "ready": 0,
+      "args": [],
+      "line": 3,
+      "signal": "",
+      "label": "x"
+    },
+    {
+      "id": "n003",
+      "module": "input",
+      "op": "input",
+      "lat": 0,
+      "ready": 0,
+      "args": [],
+      "line": 3,
+      "signal": "",
+      "label": "g0"
+    },
+    {
+      "id": "n004",
+      "module": "elem_smul",
+      "op": ".*",
+      "lat": 4,
+      "ready": 4,
+      "args": [
+        "n002",
+        "n003"
+      ],
+      "line": 3,
+      "signal": "",
+      "label": "(x .* g0)"
+    },
+    {
+      "id": "n005",
+      "module": "matadd",
+      "op": "+",
+      "lat": 1,
+      "ready": 5,
+      "args": [
+        "n001",
+        "n004"
+      ],
+      "line": 3,
+      "signal": "acc",
+      "label": "(acc + (x .* g0))"
+    }
+  ]
+}

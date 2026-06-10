@@ -1,0 +1,123 @@
+{
+  "tool": "matlib_audit",
+  "version": "1.0",
+  "file": "rootsqr.m",
+  "width": 16,
+  "scale": 12,
+  "left": 4,
+  "latencies": {
+    "ADD": 1,
+    "MUL": 4,
+    "DIV": 28,
+    "SQRT": 14,
+    "MATMUL": 5,
+    "SUMSQR": 5,
+    "ROOTSQR": 19,
+    "CROSSP": 5
+  },
+  "statements": [
+    {
+      "line": 2,
+      "target": "m",
+      "ready": 19,
+      "lat": 19,
+      "root": "n002"
+    },
+    {
+      "line": 3,
+      "target": "d",
+      "ready": 5,
+      "lat": 5,
+      "root": "n003"
+    },
+    {
+      "line": 4,
+      "target": "r",
+      "ready": 19,
+      "lat": 14,
+      "root": "n004"
+    }
+  ],
+  "critical_path": {
+    "total": 19,
+    "chain": [
+      {
+        "id": "n001",
+        "cycle": 0,
+        "line": 2,
+        "label": "v",
+        "module": "input",
+        "lat": 0
+      },
+      {
+        "id": "n002",
+        "cycle": 19,
+        "line": 2,
+        "label": "norm(v)",
+        "module": "rootsqr",
+        "lat": 19
+      }
+    ]
+  },
+  "census": {
+    "elem_usqrt": 1,
+    "rootsqr": 1,
+    "sumsqr": 1
+  },
+  "instances": 3,
+  "dividers": 0,
+  "findings": [],
+  "skipped": [],
+  "nodes": [
+    {
+      "id": "n001",
+      "module": "input",
+      "op": "input",
+      "lat": 0,
+      "ready": 0,
+      "args": [],
+      "line": 2,
+      "signal": "",
+      "label": "v"
+    },
+    {
+      "id": "n002",
+      "module": "rootsqr",
+      "op": "norm",
+      "lat": 19,
+      "ready": 19,
+      "args": [
+        "n001"
+      ],
+      "line": 2,
+      "signal": "m",
+      "label": "norm(v)"
+    },
+    {
+      "id": "n003",
+      "module": "sumsqr",
+      "op": "sumsqr",
+      "lat": 5,
+      "ready": 5,
+      "args": [
+        "n001"
+      ],
+      "line": 3,
+      "signal": "d",
+      "label": "sumsqr(v)"
+    },
+    {
+      "id": "n004",
+      "module": "elem_usqrt",
+      "op": "sqrt",
+      "lat": 14,
+      "ready": 19,
+      "args": [
+        "n003"
+      ],
+      "line": 4,
+      "signal": "r",
+      "label": "sqrt(d)"
+    }
+  ]
+}

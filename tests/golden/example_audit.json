@@ -1,0 +1,713 @@
+{
+  "tool": "matlib_audit",
+  "version": "1.0",
+  "file": "example.m",
+  "width": 16,
+  "scale": 12,
+  "left": 4,
+  "latencies": {
+    "ADD": 1,
+    "MUL": 4,
+    "DIV": 28,
+    "SQRT": 14,
+    "MATMUL": 5,
+    "SUMSQR": 5,
+    "ROOTSQR": 19,
+    "CROSSP": 5
+  },
+  "statements": [
+    {
+      "line": 5,
+      "target": "n2",
+      "ready": 6,
+      "lat": 6,
+      "root": "n008"
+    },
+    {
+      "line": 6,
+      "target": "n",
+      "ready": 20,
+      "lat": 14,
+      "root": "n009"
+    },
+    {
+      "line": 7,
+      "target": "ux",
+      "ready": 48,
+      "lat": 28,
+      "root": "n010"
+    },
+    {
+      "line": 8,
+      "target": "uy",
+      "ready": 48,
+      "lat": 28,
+      "root": "n011"
+    },
+    {
+      "line": 9,
+      "target": "uz",
+      "ready": 48,
+      "lat": 28,
+      "root": "n012"
+    },
+    {
+      "line": 12,
+      "target": "ph",
+      "ready": 28,
+      "lat": 28,
+      "root": "n015"
+    },
+    {
+      "line": 13,
+      "target": "pt",
+      "ready": 28,
+      "lat": 28,
+      "root": "n018"
+    },
+    {
+      "line": 16,
+      "target": "w",
+      "ready": 56,
+      "lat": 56,
+      "root": "n023"
+    },
+    {
+      "line": 19,
+      "target": "p4",
+      "ready": 12,
+      "lat": 12,
+      "root": "n027"
+    },
+    {
+      "line": 22,
+      "target": "s1",
+      "ready": 5,
+      "lat": 5,
+      "root": "n032"
+    },
+    {
+      "line": 23,
+      "target": "s2",
+      "ready": 5,
+      "lat": 5,
+      "root": "n035"
+    },
+    {
+      "line": 26,
+      "target": "t3",
+      "ready": 2,
+      "lat": 2,
+      "root": "n037"
+    },
+    {
+      "line": 30,
+      "target": "acc",
+      "ready": 3,
+      "lat": 1,
+      "root": "n039"
+    }
+  ],
+  "critical_path": {
+    "total": 56,
+    "chain": [
+      {
+        "id": "n019",
+        "cycle": 0,
+        "line": 16,
+        "label": "c",
+        "module": "input",
+        "lat": 0
+      },
+      {
+        "id": "n021",
+        "cycle": 28,
+        "line": 16,
+        "label": "(c / d)",
+        "module": "elem_sdiv",
+        "lat": 28
+      },
+      {
+        "id": "n023",
+        "cycle": 56,
+        "line": 16,
+        "label": "((c / d) / e)",
+        "module": "elem_sdiv",
+        "lat": 28
+      }
+    ]
+  },
+  "census": {
+    "elem_sdiv": 7,
+    "elem_smul": 8,
+    "elem_usqrt": 1,
+    "matadd": 7
+  },
+  "instances": 23,
+  "dividers": 7,
+  "findings": [
+    {
+      "tag": "FUSE",
+      "line": 5,
+      "savings": 1,
+      "message": "chained adds '(((x .* x) + (y .* y)) + (z .* z))'",
+      "suggestion": "fuse into one matadd3: saves 1 cycle of pipeline depth"
+    },
+    {
+      "tag": "RECIP",
+      "line": 7,
+      "savings": 48,
+      "message": "3 divisions share divisor 'n'",
+      "suggestion": "compute r = 1/n once (elem_sinv) and multiply by r (elem_smul): 2 fewer dividers, 48 cycles of divider depth removed"
+    },
+    {
+      "tag": "CDIV",
+      "line": 12,
+      "savings": 27,
+      "message": "division by power-of-two constant 8",
+      "suggestion": "replace with elem_rshift by 3: saves 27 cycles and one divider"
+    },
+    {
+      "tag": "CDIV",
+      "line": 13,
+      "savings": 24,
+      "message": "division by constant 3",
+      "suggestion": "multiply by the constant 1/3 (elem_smul): saves 24 cycles and one divider"
+    },
+    {
+      "tag": "SERDIV",
+      "line": 16,
+      "savings": 24,
+      "message": "serial division chain",
+      "suggestion": "multiply the divisors and divide once: saves 24 cycles and one divider"
+    },
+    {
+      "tag": "POW",
+      "line": 19,
+      "savings": 4,
+      "message": "'q' raised to the 4 by a multiply chain (3 multipliers)",
+      "suggestion": "use binary exponentiation via elem_ssqr (2 multipliers): saves 4 cycles"
+    },
+    {
+      "tag": "CSE",
+      "line": 22,
+      "savings": 1,
+      "message": "'(u + v)' is computed 2 times (lines 22, 23)",
+      "suggestion": "compute once and `PIPE the result: removes 1 matadd instance(s)"
+    },
+    {
+      "tag": "FUSE",
+      "line": 26,
+      "savings": 1,
+      "message": "chained adds '((a + b) + c)'",
+      "suggestion": "fuse into one matadd3: saves 1 cycle of pipeline depth"
+    },
+    {
+      "tag": "FEEDBACK",
+      "line": 30,
+      "savings": 0,
+      "message": "'acc' feeds back into itself: loop initiation interval is 1 cycles",
+      "suggestion": "a new iteration can start only every 1 cycles; shorten the feedback path or restructure the recurrence"
+    }
+  ],
+  "skipped": [],
+  "nodes": [
+    {
+      "id": "n001",
+      "module": "input",
+      "op": "input",
+      "lat": 0,
+      "ready": 0,
+      "args": [],
+      "line": 5,
+      "signal": "",
+      "label": "x"
+    },
+    {
+      "id": "n002",
+      "module": "elem_smul",
+      "op": ".*",
+      "lat": 4,
+      "ready": 4,
+      "args": [
+        "n001",
+        "n001"
+      ],
+      "line": 5,
+      "signal": "",
+      "label": "(x .* x)"
+    },
+    {
+      "id": "n003",
+      "module": "input",
+      "op": "input",
+      "lat": 0,
+      "ready": 0,
+      "args": [],
+      "line": 5,
+      "signal": "",
+      "label": "y"
+    },
+    {
+      "id": "n004",
+      "module": "elem_smul",
+      "op": ".*",
+      "lat": 4,
+      "ready": 4,
+      "args": [
+        "n003",
+        "n003"
+      ],
+      "line": 5,
+      "signal": "",
+      "label": "(y .* y)"
+    },
+    {
+      "id": "n005",
+      "module": "matadd",
+      "op": "+",
+      "lat": 1,
+      "ready": 5,
+      "args": [
+        "n002",
+        "n004"
+      ],
+      "line": 5,
+      "signal": "",
+      "label": "((x .* x) + (y .* y))"
+    },
+    {
+      "id": "n006",
+      "module": "input",
+      "op": "input",
+      "lat": 0,
+      "ready": 0,
+      "args": [],
+      "line": 5,
+      "signal": "",
+      "label": "z"
+    },
+    {
+      "id": "n007",
+      "module": "elem_smul",
+      "op": ".*",
+      "lat": 4,
+      "ready": 4,
+      "args": [
+        "n006",
+        "n006"
+      ],
+      "line": 5,
+      "signal": "",
+      "label": "(z .* z)"
+    },
+    {
+      "id": "n008",
+      "module": "matadd",
+      "op": "+",
+      "lat": 1,
+      "ready": 6,
+      "args": [
+        "n005",
+        "n007"
+      ],
+      "line": 5,
+      "signal": "n2",
+      "label": "(((x .* x) + (y .* y)) + (z .* z))"
+    },
+    {
+      "id": "n009",
+      "module": "elem_usqrt",
+      "op": "sqrt",
+      "lat": 14,
+      "ready": 20,
+      "args": [
+        "n008"
+      ],
+      "line": 6,
+      "signal": "n",
+      "label": "sqrt(n2)"
+    },
+    {
+      "id": "n010",
+      "module": "elem_sdiv",
+      "op": "/",
+      "lat": 28,
+      "ready": 48,
+      "args": [
+        "n001",
+        "n009"
+      ],
+      "line": 7,
+      "signal": "ux",
+      "label": "(x ./ n)"
+    },
+    {
+      "id": "n011",
+      "module": "elem_sdiv",
+      "op": "/",
+      "lat": 28,
+      "ready": 48,
+      "args": [
+        "n003",
+        "n009"
+      ],
+      "line": 8,
+      "signal": "uy",
+      "label": "(y ./ n)"
+    },
+    {
+      "id": "n012",
+      "module": "elem_sdiv",
+      "op": "/",
+      "lat": 28,
+      "ready": 48,
+      "args": [
+        "n006",
+        "n009"
+      ],
+      "line": 9,
+      "signal": "uz",
+      "label": "(z ./ n)"
+    },
+    {
+      "id": "n013",
+      "module": "input",
+      "op": "input",
+      "lat": 0,
+      "ready": 0,
+      "args": [],
+      "line": 12,
+      "signal": "",
+      "label": "a"
+    },
+    {
+      "id": "n014",
+      "module": "const",
+      "op": "const",
+      "lat": 0,
+      "ready": 0,
+      "args": [],
+      "line": 12,
+      "signal": "",
+      "label": "8"
+    },
+    {
+      "id": "n015",
+      "module": "elem_sdiv",
+      "op": "/",
+      "lat": 28,
+      "ready": 28,
+      "args": [
+        "n013",
+        "n014"
+      ],
+      "line": 12,
+      "signal": "ph",
+      "label": "(a / 8)"
+    },
+    {
+      "id": "n016",
+      "module": "input",
+      "op": "input",
+      "lat": 0,
+      "ready": 0,
+      "args": [],
+      "line": 13,
+      "signal": "",
+      "label": "b"
+    },
+    {
+      "id": "n017",
+      "module": "const",
+      "op": "const",
+      "lat": 0,
+      "ready": 0,
+      "args": [],
+      "line": 13,
+      "signal": "",
+      "label": "3"
+    },
+    {
+      "id": "n018",
+      "module": "elem_sdiv",
+      "op": "/",
+      "lat": 28,
+      "ready": 28,
+      "args": [
+        "n016",
+        "n017"
+      ],
+      "line": 13,
+      "signal": "pt",
+      "label": "(b / 3)"
+    },
+    {
+      "id": "n019",
+      "module": "input",
+      "op": "input",
+      "lat": 0,
+      "ready": 0,
+      "args": [],
+      "line": 16,
+      "signal": "",
+      "label": "c"
+    },
+    {
+      "id": "n020",
+      "module": "input",
+      "op": "input",
+      "lat": 0,
+      "ready": 0,
+      "args": [],
+      "line": 16,
+      "signal": "",
+      "label": "d"
+    },
+    {
+      "id": "n021",
+      "module": "elem_sdiv",
+      "op": "/",
+      "lat": 28,
+      "ready": 28,
+      "args": [
+        "n019",
+        "n020"
+      ],
+      "line": 16,
+      "signal": "",
+      "label": "(c / d)"
+    },
+    {
+      "id": "n022",
+      "module": "input",
+      "op": "input",
+      "lat": 0,
+      "ready": 0,
+      "args": [],
+      "line": 16,
+      "signal": "",
+      "label": "e"
+    },
+    {
+      "id": "n023",
+      "module": "elem_sdiv",
+      "op": "/",
+      "lat": 28,
+      "ready": 56,
+      "args": [
+        "n021",
+        "n022"
+      ],
+      "line": 16,
+      "signal": "w",
+      "label": "((c / d) / e)"
+    },
+    {
+      "id": "n024",
+      "module": "input",
+      "op": "input",
+      "lat": 0,
+      "ready": 0,
+      "args": [],
+      "line": 19,
+      "signal": "",
+      "label": "q"
+    },
+    {
+      "id": "n025",
+      "module": "elem_smul",
+      "op": ".*",
+      "lat": 4,
+      "ready": 4,
+      "args": [
+        "n024",
+        "n024"
+      ],
+      "line": 19,
+      "signal": "",
+      "label": "(q^2)"
+    },
+    {
+      "id": "n026",
+      "module": "elem_smul",
+      "op": ".*",
+      "lat": 4,
+      "ready": 8,
+      "args": [
+        "n025",
+        "n024"
+      ],
+      "line": 19,
+      "signal": "",
+      "label": "(q^3)"
+    },
+    {
+      "id": "n027",
+      "module": "elem_smul",
+      "op": ".*",
+      "lat": 4,
+      "ready": 12,
+      "args": [
+        "n026",
+        "n024"
+      ],
+      "line": 19,
+      "signal": "p4",
+      "label": "(q^4)"
+    },
+    {
+      "id": "n028",
+      "module": "input",
+      "op": "input",
+      "lat": 0,
+      "ready": 0,
+      "args": [],
+      "line": 22,
+      "signal": "",
+      "label": "u"
+    },
+    {
+      "id": "n029",
+      "module": "input",
+      "op": "input",
+      "lat": 0,
+      "ready": 0,
+      "args": [],
+      "line": 22,
+      "signal": "",
+      "label": "v"
+    },
+    {
+      "id": "n030",
+      "module": "matadd",
+      "op": "+",
+      "lat": 1,
+      "ready": 1,
+      "args": [
+        "n028",
+        "n029"
+      ],
+      "line": 22,
+      "signal": "",
+      "label": "(u + v)"
+    },
+    {
+      "id": "n031",
+      "module": "input",
+      "op": "input",
+      "lat": 0,
+      "ready": 0,
+      "args": [],
+      "line": 22,
+      "signal": "",
+      "label": "k1"
+    },
+    {
+      "id": "n032",
+      "module": "elem_smul",
+      "op": ".*",
+      "lat": 4,
+      "ready": 5,
+      "args": [
+        "n030",
+        "n031"
+      ],
+      "line": 22,
+      "signal": "s1",
+      "label": "((u + v) .* k1)"
+    },
+    {
+      "id": "n033",
+      "module": "matadd",
+      "op": "+",
+      "lat": 1,
+      "ready": 1,
+      "args": [
+        "n028",
+        "n029"
+      ],
+      "line": 23,
+      "signal": "",
+      "label": "(u + v)"
+    },
+    {
+      "id": "n034",
+      "module": "input",
+      "op": "input",
+      "lat": 0,
+      "ready": 0,
+      "args": [],
+      "line": 23,
+      "signal": "",
+      "label": "k2"
+    },
+    {
+      "id": "n035",
+      "module": "elem_smul",
+      "op": ".*",
+      "lat": 4,
+      "ready": 5,
+      "args": [
+        "n033",
+        "n034"
+      ],
+      "line": 23,
+      "signal": "s2",
+      "label": "((u + v) .* k2)"
+    },
+    {
+      "id": "n036",
+      "module": "matadd",
+      "op": "+",
+      "lat": 1,
+      "ready": 1,
+      "args": [
+        "n013",
+        "n016"
+      ],
+      "line": 26,
+      "signal": "",
+      "label": "(a + b)"
+    },
+    {
+      "id": "n037",
+      "module": "matadd",
+      "op": "+",
+      "lat": 1,
+      "ready": 2,
+      "args": [
+        "n036",
+        "n019"
+      ],
+      "line": 26,
+      "signal": "t3",
+      "label": "((a + b) + c)"
+    },
+    {
+      "id": "n038",
+      "module": "input",
+      "op": "input",
+      "lat": 0,
+      "ready": 0,
+      "args": [],
+      "line": 30,
+      "signal": "",
+      "label": "acc"
+    },
+    {
+      "id": "n039",
+      "module": "matadd",
+      "op": "+",
+      "lat": 1,
+      "ready": 3,
+      "args": [
+        "n038",
+        "n037"
+      ],
+      "line": 30,
+      "signal": "acc",
+      "label": "(acc + t3)"
+    }
+  ]
+}

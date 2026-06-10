@@ -1,0 +1,1033 @@
+matlib_audit 1.0 — nkMatlib latency audit
+file: gen500.m
+fixedp: WIDTH=16 SCALE=12 LEFT=4
+latencies: ADD=1 MUL=4 DIV=28 SQRT=14 MATMUL=5 SUMSQR=5 ROOTSQR=19 CROSSP=5
+
+== statements ==
+  line   2  v1           ready @    4  (+4)
+  line   3  v2           ready @    5  (+1)
+  line   4  v3           ready @    6  (+1)
+  line   5  v4           ready @   10  (+4)
+  line   6  v5           ready @   11  (+1)
+  line   7  v6           ready @   12  (+1)
+  line   8  v7           ready @   16  (+4)
+  line   9  v8           ready @   17  (+1)
+  line  10  v9           ready @   18  (+1)
+  line  11  v10          ready @   22  (+4)
+  line  12  v11          ready @   23  (+1)
+  line  13  v12          ready @   24  (+1)
+  line  14  v13          ready @   28  (+4)
+  line  15  v14          ready @   29  (+1)
+  line  16  v15          ready @   30  (+1)
+  line  17  v16          ready @   34  (+4)
+  line  18  v17          ready @   35  (+1)
+  line  19  v18          ready @   36  (+1)
+  line  20  v19          ready @   40  (+4)
+  line  21  v20          ready @   41  (+1)
+  line  22  v21          ready @   42  (+1)
+  line  23  v22          ready @   46  (+4)
+  line  24  v23          ready @   47  (+1)
+  line  25  v24          ready @   48  (+1)
+  line  26  v25          ready @   52  (+4)
+  line  27  v26          ready @   53  (+1)
+  line  28  v27          ready @   54  (+1)
+  line  29  v28          ready @   58  (+4)
+  line  30  v29          ready @   59  (+1)
+  line  31  v30          ready @   60  (+1)
+  line  32  v31          ready @   64  (+4)
+  line  33  v32          ready @   65  (+1)
+  line  34  v33          ready @   66  (+1)
+  line  35  v34          ready @   70  (+4)
+  line  36  v35          ready @   71  (+1)
+  line  37  v36          ready @   72  (+1)
+  line  38  v37          ready @   76  (+4)
+  line  39  v38          ready @   77  (+1)
+  line  40  v39          ready @   78  (+1)
+  line  41  v40          ready @   82  (+4)
+  line  42  v41          ready @   83  (+1)
+  line  43  v42          ready @   84  (+1)
+  line  44  v43          ready @   88  (+4)
+  line  45  v44          ready @   89  (+1)
+  line  46  v45          ready @   90  (+1)
+  line  47  v46          ready @   94  (+4)
+  line  48  v47          ready @   95  (+1)
+  line  49  v48          ready @   96  (+1)
+  line  50  v49          ready @  100  (+4)
+  line  51  v50          ready @  142  (+42)
+  line  52  v51          ready @  143  (+1)
+  line  53  v52          ready @  147  (+4)
+  line  54  v53          ready @  148  (+1)
+  line  55  v54          ready @  149  (+1)
+  line  56  v55          ready @  153  (+4)
+  line  57  v56          ready @  154  (+1)
+  line  58  v57          ready @  155  (+1)
+  line  59  v58          ready @  159  (+4)
+  line  60  v59          ready @  160  (+1)
+  line  61  v60          ready @  161  (+1)
+  line  62  v61          ready @  165  (+4)
+  line  63  v62          ready @  166  (+1)
+  line  64  v63          ready @  167  (+1)
+  line  65  v64          ready @  171  (+4)
+  line  66  v65          ready @  172  (+1)
+  line  67  v66          ready @  173  (+1)
+  line  68  v67          ready @  177  (+4)
+  line  69  v68          ready @  178  (+1)
+  line  70  v69          ready @  179  (+1)
+  line  71  v70          ready @  183  (+4)
+  line  72  v71          ready @  184  (+1)
+  line  73  v72          ready @  185  (+1)
+  line  74  v73          ready @  189  (+4)
+  line  75  v74          ready @  190  (+1)
+  line  76  v75          ready @  191  (+1)
+  line  77  v76          ready @  195  (+4)
+  line  78  v77          ready @  196  (+1)
+  line  79  v78          ready @  197  (+1)
+  line  80  v79          ready @  201  (+4)
+  line  81  v80          ready @  202  (+1)
+  line  82  v81          ready @  203  (+1)
+  line  83  v82          ready @  207  (+4)
+  line  84  v83          ready @  208  (+1)
+  line  85  v84          ready @  209  (+1)
+  line  86  v85          ready @  213  (+4)
+  line  87  v86          ready @  214  (+1)
+  line  88  v87          ready @  215  (+1)
+  line  89  v88          ready @  219  (+4)
+  line  90  v89          ready @  220  (+1)
+  line  91  v90          ready @  221  (+1)
+  line  92  v91          ready @  225  (+4)
+  line  93  v92          ready @  226  (+1)
+  line  94  v93          ready @  227  (+1)
+  line  95  v94          ready @  231  (+4)
+  line  96  v95          ready @  232  (+1)
+  line  97  v96          ready @  233  (+1)
+  line  98  v97          ready @  237  (+4)
+  line  99  v98          ready @  238  (+1)
+  line 100  v99          ready @  239  (+1)
+  line 101  v100         ready @  281  (+42)
+  line 102  v101         ready @  282  (+1)
+  line 103  v102         ready @  283  (+1)
+  line 104  v103         ready @  287  (+4)
+  line 105  v104         ready @  288  (+1)
+  line 106  v105         ready @  289  (+1)
+  line 107  v106         ready @  293  (+4)
+  line 108  v107         ready @  294  (+1)
+  line 109  v108         ready @  295  (+1)
+  line 110  v109         ready @  299  (+4)
+  line 111  v110         ready @  300  (+1)
+  line 112  v111         ready @  301  (+1)
+  line 113  v112         ready @  305  (+4)
+  line 114  v113         ready @  306  (+1)
+  line 115  v114         ready @  307  (+1)
+  line 116  v115         ready @  311  (+4)
+  line 117  v116         ready @  312  (+1)
+  line 118  v117         ready @  313  (+1)
+  line 119  v118         ready @  317  (+4)
+  line 120  v119         ready @  318  (+1)
+  line 121  v120         ready @  319  (+1)
+  line 122  v121         ready @  323  (+4)
+  line 123  v122         ready @  324  (+1)
+  line 124  v123         ready @  325  (+1)
+  line 125  v124         ready @  329  (+4)
+  line 126  v125         ready @  330  (+1)
+  line 127  v126         ready @  331  (+1)
+  line 128  v127         ready @  335  (+4)
+  line 129  v128         ready @  336  (+1)
+  line 130  v129         ready @  337  (+1)
+  line 131  v130         ready @  341  (+4)
+  line 132  v131         ready @  342  (+1)
+  line 133  v132         ready @  343  (+1)
+  line 134  v133         ready @  347  (+4)
+  line 135  v134         ready @  348  (+1)
+  line 136  v135         ready @  349  (+1)
+  line 137  v136         ready @  353  (+4)
+  line 138  v137         ready @  354  (+1)
+  line 139  v138         ready @  355  (+1)
+  line 140  v139         ready @  359  (+4)
+  line 141  v140         ready @  360  (+1)
+  line 142  v141         ready @  361  (+1)
+  line 143  v142         ready @  365  (+4)
+  line 144  v143         ready @  366  (+1)
+  line 145  v144         ready @  367  (+1)
+  line 146  v145         ready @  371  (+4)
+  line 147  v146         ready @  372  (+1)
+  line 148  v147         ready @  373  (+1)
+  line 149  v148         ready @  377  (+4)
+  line 150  v149         ready @  378  (+1)
+  line 151  v150         ready @  420  (+42)
+  line 152  v151         ready @  424  (+4)
+  line 153  v152         ready @  425  (+1)
+  line 154  v153         ready @  426  (+1)
+  line 155  v154         ready @  430  (+4)
+  line 156  v155         ready @  431  (+1)
+  line 157  v156         ready @  432  (+1)
+  line 158  v157         ready @  436  (+4)
+  line 159  v158         ready @  437  (+1)
+  line 160  v159         ready @  438  (+1)
+  line 161  v160         ready @  442  (+4)
+  line 162  v161         ready @  443  (+1)
+  line 163  v162         ready @  444  (+1)
+  line 164  v163         ready @  448  (+4)
+  line 165  v164         ready @  449  (+1)
+  line 166  v165         ready @  450  (+1)
+  line 167  v166         ready @  454  (+4)
+  line 168  v167         ready @  455  (+1)
+  line 169  v168         ready @  456  (+1)
+  line 170  v169         ready @  460  (+4)
+  line 171  v170         ready @  461  (+1)
+  line 172  v171         ready @  462  (+1)
+  line 173  v172         ready @  466  (+4)
+  line 174  v173         ready @  467  (+1)
+  line 175  v174         ready @  468  (+1)
+  line 176  v175         ready @  472  (+4)
+  line 177  v176         ready @  473  (+1)
+  line 178  v177         ready @  474  (+1)
+  line 179  v178         ready @  478  (+4)
+  line 180  v179         ready @  479  (+1)
+  line 181  v180         ready @  480  (+1)
+  line 182  v181         ready @  484  (+4)
+  line 183  v182         ready @  485  (+1)
+  line 184  v183         ready @  486  (+1)
+  line 185  v184         ready @  490  (+4)
+  line 186  v185         ready @  491  (+1)
+  line 187  v186         ready @  492  (+1)
+  line 188  v187         ready @  496  (+4)
+  line 189  v188         ready @  497  (+1)
+  line 190  v189         ready @  498  (+1)
+  line 191  v190         ready @  502  (+4)
+  line 192  v191         ready @  503  (+1)
+  line 193  v192         ready @  504  (+1)
+  line 194  v193         ready @  508  (+4)
+  line 195  v194         ready @  509  (+1)
+  line 196  v195         ready @  510  (+1)
+  line 197  v196         ready @  514  (+4)
+  line 198  v197         ready @  515  (+1)
+  line 199  v198         ready @  516  (+1)
+  line 200  v199         ready @  520  (+4)
+  line 201  v200         ready @  562  (+42)
+  line 202  v201         ready @  563  (+1)
+  line 203  v202         ready @  567  (+4)
+  line 204  v203         ready @  568  (+1)
+  line 205  v204         ready @  569  (+1)
+  line 206  v205         ready @  573  (+4)
+  line 207  v206         ready @  574  (+1)
+  line 208  v207         ready @  575  (+1)
+  line 209  v208         ready @  579  (+4)
+  line 210  v209         ready @  580  (+1)
+  line 211  v210         ready @  581  (+1)
+  line 212  v211         ready @  585  (+4)
+  line 213  v212         ready @  586  (+1)
+  line 214  v213         ready @  587  (+1)
+  line 215  v214         ready @  591  (+4)
+  line 216  v215         ready @  592  (+1)
+  line 217  v216         ready @  593  (+1)
+  line 218  v217         ready @  597  (+4)
+  line 219  v218         ready @  598  (+1)
+  line 220  v219         ready @  599  (+1)
+  line 221  v220         ready @  603  (+4)
+  line 222  v221         ready @  604  (+1)
+  line 223  v222         ready @  605  (+1)
+  line 224  v223         ready @  609  (+4)
+  line 225  v224         ready @  610  (+1)
+  line 226  v225         ready @  611  (+1)
+  line 227  v226         ready @  615  (+4)
+  line 228  v227         ready @  616  (+1)
+  line 229  v228         ready @  617  (+1)
+  line 230  v229         ready @  621  (+4)
+  line 231  v230         ready @  622  (+1)
+  line 232  v231         ready @  623  (+1)
+  line 233  v232         ready @  627  (+4)
+  line 234  v233         ready @  628  (+1)
+  line 235  v234         ready @  629  (+1)
+  line 236  v235         ready @  633  (+4)
+  line 237  v236         ready @  634  (+1)
+  line 238  v237         ready @  635  (+1)
+  line 239  v238         ready @  639  (+4)
+  line 240  v239         ready @  640  (+1)
+  line 241  v240         ready @  641  (+1)
+  line 242  v241         ready @  645  (+4)
+  line 243  v242         ready @  646  (+1)
+  line 244  v243         ready @  647  (+1)
+  line 245  v244         ready @  651  (+4)
+  line 246  v245         ready @  652  (+1)
+  line 247  v246         ready @  653  (+1)
+  line 248  v247         ready @  657  (+4)
+  line 249  v248         ready @  658  (+1)
+  line 250  v249         ready @  659  (+1)
+  line 251  v250         ready @  701  (+42)
+  line 252  v251         ready @  702  (+1)
+  line 253  v252         ready @  703  (+1)
+  line 254  v253         ready @  707  (+4)
+  line 255  v254         ready @  708  (+1)
+  line 256  v255         ready @  709  (+1)
+  line 257  v256         ready @  713  (+4)
+  line 258  v257         ready @  714  (+1)
+  line 259  v258         ready @  715  (+1)
+  line 260  v259         ready @  719  (+4)
+  line 261  v260         ready @  720  (+1)
+  line 262  v261         ready @  721  (+1)
+  line 263  v262         ready @  725  (+4)
+  line 264  v263         ready @  726  (+1)
+  line 265  v264         ready @  727  (+1)
+  line 266  v265         ready @  731  (+4)
+  line 267  v266         ready @  732  (+1)
+  line 268  v267         ready @  733  (+1)
+  line 269  v268         ready @  737  (+4)
+  line 270  v269         ready @  738  (+1)
+  line 271  v270         ready @  739  (+1)
+  line 272  v271         ready @  743  (+4)
+  line 273  v272         ready @  744  (+1)
+  line 274  v273         ready @  745  (+1)
+  line 275  v274         ready @  749  (+4)
+  line 276  v275         ready @  750  (+1)
+  line 277  v276         ready @  751  (+1)
+  line 278  v277         ready @  755  (+4)
+  line 279  v278         ready @  756  (+1)
+  line 280  v279         ready @  757  (+1)
+  line 281  v280         ready @  761  (+4)
+  line 282  v281         ready @  762  (+1)
+  line 283  v282         ready @  763  (+1)
+  line 284  v283         ready @  767  (+4)
+  line 285  v284         ready @  768  (+1)
+  line 286  v285         ready @  769  (+1)
+  line 287  v286         ready @  773  (+4)
+  line 288  v287         ready @  774  (+1)
+  line 289  v288         ready @  775  (+1)
+  line 290  v289         ready @  779  (+4)
+  line 291  v290         ready @  780  (+1)
+  line 292  v291         ready @  781  (+1)
+  line 293  v292         ready @  785  (+4)
+  line 294  v293         ready @  786  (+1)
+  line 295  v294         ready @  787  (+1)
+  line 296  v295         ready @  791  (+4)
+  line 297  v296         ready @  792  (+1)
+  line 298  v297         ready @  793  (+1)
+  line 299  v298         ready @  797  (+4)
+  line 300  v299         ready @  798  (+1)
+  line 301  v300         ready @  840  (+42)
+  line 302  v301         ready @  844  (+4)
+  line 303  v302         ready @  845  (+1)
+  line 304  v303         ready @  846  (+1)
+  line 305  v304         ready @  850  (+4)
+  line 306  v305         ready @  851  (+1)
+  line 307  v306         ready @  852  (+1)
+  line 308  v307         ready @  856  (+4)
+  line 309  v308         ready @  857  (+1)
+  line 310  v309         ready @  858  (+1)
+  line 311  v310         ready @  862  (+4)
+  line 312  v311         ready @  863  (+1)
+  line 313  v312         ready @  864  (+1)
+  line 314  v313         ready @  868  (+4)
+  line 315  v314         ready @  869  (+1)
+  line 316  v315         ready @  870  (+1)
+  line 317  v316         ready @  874  (+4)
+  line 318  v317         ready @  875  (+1)
+  line 319  v318         ready @  876  (+1)
+  line 320  v319         ready @  880  (+4)
+  line 321  v320         ready @  881  (+1)
+  line 322  v321         ready @  882  (+1)
+  line 323  v322         ready @  886  (+4)
+  line 324  v323         ready @  887  (+1)
+  line 325  v324         ready @  888  (+1)
+  line 326  v325         ready @  892  (+4)
+  line 327  v326         ready @  893  (+1)
+  line 328  v327         ready @  894  (+1)
+  line 329  v328         ready @  898  (+4)
+  line 330  v329         ready @  899  (+1)
+  line 331  v330         ready @  900  (+1)
+  line 332  v331         ready @  904  (+4)
+  line 333  v332         ready @  905  (+1)
+  line 334  v333         ready @  906  (+1)
+  line 335  v334         ready @  910  (+4)
+  line 336  v335         ready @  911  (+1)
+  line 337  v336         ready @  912  (+1)
+  line 338  v337         ready @  916  (+4)
+  line 339  v338         ready @  917  (+1)
+  line 340  v339         ready @  918  (+1)
+  line 341  v340         ready @  922  (+4)
+  line 342  v341         ready @  923  (+1)
+  line 343  v342         ready @  924  (+1)
+  line 344  v343         ready @  928  (+4)
+  line 345  v344         ready @  929  (+1)
+  line 346  v345         ready @  930  (+1)
+  line 347  v346         ready @  934  (+4)
+  line 348  v347         ready @  935  (+1)
+  line 349  v348         ready @  936  (+1)
+  line 350  v349         ready @  940  (+4)
+  line 351  v350         ready @  982  (+42)
+  line 352  v351         ready @  983  (+1)
+  line 353  v352         ready @  987  (+4)
+  line 354  v353         ready @  988  (+1)
+  line 355  v354         ready @  989  (+1)
+  line 356  v355         ready @  993  (+4)
+  line 357  v356         ready @  994  (+1)
+  line 358  v357         ready @  995  (+1)
+  line 359  v358         ready @  999  (+4)
+  line 360  v359         ready @ 1000  (+1)
+  line 361  v360         ready @ 1001  (+1)
+  line 362  v361         ready @ 1005  (+4)
+  line 363  v362         ready @ 1006  (+1)
+  line 364  v363         ready @ 1007  (+1)
+  line 365  v364         ready @ 1011  (+4)
+  line 366  v365         ready @ 1012  (+1)
+  line 367  v366         ready @ 1013  (+1)
+  line 368  v367         ready @ 1017  (+4)
+  line 369  v368         ready @ 1018  (+1)
+  line 370  v369         ready @ 1019  (+1)
+  line 371  v370         ready @ 1023  (+4)
+  line 372  v371         ready @ 1024  (+1)
+  line 373  v372         ready @ 1025  (+1)
+  line 374  v373         ready @ 1029  (+4)
+  line 375  v374         ready @ 1030  (+1)
+  line 376  v375         ready @ 1031  (+1)
+  line 377  v376         ready @ 1035  (+4)
+  line 378  v377         ready @ 1036  (+1)
+  line 379  v378         ready @ 1037  (+1)
+  line 380  v379         ready @ 1041  (+4)
+  line 381  v380         ready @ 1042  (+1)
+  line 382  v381         ready @ 1043  (+1)
+  line 383  v382         ready @ 1047  (+4)
+  line 384  v383         ready @ 1048  (+1)
+  line 385  v384         ready @ 1049  (+1)
+  line 386  v385         ready @ 1053  (+4)
+  line 387  v386         ready @ 1054  (+1)
+  line 388  v387         ready @ 1055  (+1)
+  line 389  v388         ready @ 1059  (+4)
+  line 390  v389         ready @ 1060  (+1)
+  line 391  v390         ready @ 1061  (+1)
+  line 392  v391         ready @ 1065  (+4)
+  line 393  v392         ready @ 1066  (+1)
+  line 394  v393         ready @ 1067  (+1)
+  line 395  v394         ready @ 1071  (+4)
+  line 396  v395         ready @ 1072  (+1)
+  line 397  v396         ready @ 1073  (+1)
+  line 398  v397         ready @ 1077  (+4)
+  line 399  v398         ready @ 1078  (+1)
+  line 400  v399         ready @ 1079  (+1)
+  line 401  v400         ready @ 1121  (+42)
+  line 402  v401         ready @ 1122  (+1)
+  line 403  v402         ready @ 1123  (+1)
+  line 404  v403         ready @ 1127  (+4)
+  line 405  v404         ready @ 1128  (+1)
+  line 406  v405         ready @ 1129  (+1)
+  line 407  v406         ready @ 1133  (+4)
+  line 408  v407         ready @ 1134  (+1)
+  line 409  v408         ready @ 1135  (+1)
+  line 410  v409         ready @ 1139  (+4)
+  line 411  v410         ready @ 1140  (+1)
+  line 412  v411         ready @ 1141  (+1)
+  line 413  v412         ready @ 1145  (+4)
+  line 414  v413         ready @ 1146  (+1)
+  line 415  v414         ready @ 1147  (+1)
+  line 416  v415         ready @ 1151  (+4)
+  line 417  v416         ready @ 1152  (+1)
+  line 418  v417         ready @ 1153  (+1)
+  line 419  v418         ready @ 1157  (+4)
+  line 420  v419         ready @ 1158  (+1)
+  line 421  v420         ready @ 1159  (+1)
+  line 422  v421         ready @ 1163  (+4)
+  line 423  v422         ready @ 1164  (+1)
+  line 424  v423         ready @ 1165  (+1)
+  line 425  v424         ready @ 1169  (+4)
+  line 426  v425         ready @ 1170  (+1)
+  line 427  v426         ready @ 1171  (+1)
+  line 428  v427         ready @ 1175  (+4)
+  line 429  v428         ready @ 1176  (+1)
+  line 430  v429         ready @ 1177  (+1)
+  line 431  v430         ready @ 1181  (+4)
+  line 432  v431         ready @ 1182  (+1)
+  line 433  v432         ready @ 1183  (+1)
+  line 434  v433         ready @ 1187  (+4)
+  line 435  v434         ready @ 1188  (+1)
+  line 436  v435         ready @ 1189  (+1)
+  line 437  v436         ready @ 1193  (+4)
+  line 438  v437         ready @ 1194  (+1)
+  line 439  v438         ready @ 1195  (+1)
+  line 440  v439         ready @ 1199  (+4)
+  line 441  v440         ready @ 1200  (+1)
+  line 442  v441         ready @ 1201  (+1)
+  line 443  v442         ready @ 1205  (+4)
+  line 444  v443         ready @ 1206  (+1)
+  line 445  v444         ready @ 1207  (+1)
+  line 446  v445         ready @ 1211  (+4)
+  line 447  v446         ready @ 1212  (+1)
+  line 448  v447         ready @ 1213  (+1)
+  line 449  v448         ready @ 1217  (+4)
+  line 450  v449         ready @ 1218  (+1)
+  line 451  v450         ready @ 1260  (+42)
+  line 452  v451         ready @ 1264  (+4)
+  line 453  v452         ready @ 1265  (+1)
+  line 454  v453         ready @ 1266  (+1)
+  line 455  v454         ready @ 1270  (+4)
+  line 456  v455         ready @ 1271  (+1)
+  line 457  v456         ready @ 1272  (+1)
+  line 458  v457         ready @ 1276  (+4)
+  line 459  v458         ready @ 1277  (+1)
+  line 460  v459         ready @ 1278  (+1)
+  line 461  v460         ready @ 1282  (+4)
+  line 462  v461         ready @ 1283  (+1)
+  line 463  v462         ready @ 1284  (+1)
+  line 464  v463         ready @ 1288  (+4)
+  line 465  v464         ready @ 1289  (+1)
+  line 466  v465         ready @ 1290  (+1)
+  line 467  v466         ready @ 1294  (+4)
+  line 468  v467         ready @ 1295  (+1)
+  line 469  v468         ready @ 1296  (+1)
+  line 470  v469         ready @ 1300  (+4)
+  line 471  v470         ready @ 1301  (+1)
+  line 472  v471         ready @ 1302  (+1)
+  line 473  v472         ready @ 1306  (+4)
+  line 474  v473         ready @ 1307  (+1)
+  line 475  v474         ready @ 1308  (+1)
+  line 476  v475         ready @ 1312  (+4)
+  line 477  v476         ready @ 1313  (+1)
+  line 478  v477         ready @ 1314  (+1)
+  line 479  v478         ready @ 1318  (+4)
+  line 480  v479         ready @ 1319  (+1)
+  line 481  v480         ready @ 1320  (+1)
+  line 482  v481         ready @ 1324  (+4)
+  line 483  v482         ready @ 1325  (+1)
+  line 484  v483         ready @ 1326  (+1)
+  line 485  v484         ready @ 1330  (+4)
+  line 486  v485         ready @ 1331  (+1)
+  line 487  v486         ready @ 1332  (+1)
+  line 488  v487         ready @ 1336  (+4)
+  line 489  v488         ready @ 1337  (+1)
+  line 490  v489         ready @ 1338  (+1)
+  line 491  v490         ready @ 1342  (+4)
+  line 492  v491         ready @ 1343  (+1)
+  line 493  v492         ready @ 1344  (+1)
+  line 494  v493         ready @ 1348  (+4)
+  line 495  v494         ready @ 1349  (+1)
+  line 496  v495         ready @ 1350  (+1)
+  line 497  v496         ready @ 1354  (+4)
+  line 498  v497         ready @ 1355  (+1)
+  line 499  v498         ready @ 1356  (+1)
+  line 500  v499         ready @ 1360  (+4)
+  line 501  v500         ready @ 1402  (+42)
+
+== critical path ==  total 1402 cycles
+  @    0  line   2  x0                                     input        
+  @    4  line   2  (x0 .* in1)                            elem_smul    +4
+  @    5  line   3  (v1 - in2)                             matsub       +1
+  @    6  line   4  (v2 + in3)                             matadd       +1
+  @   10  line   5  (v3 .* in4)                            elem_smul    +4
+  @   11  line   6  (v4 - in5)                             matsub       +1
+  @   12  line   7  (v5 + in6)                             matadd       +1
+  @   16  line   8  (v6 .* in0)                            elem_smul    +4
+  @   17  line   9  (v7 - in1)                             matsub       +1
+  @   18  line  10  (v8 + in2)                             matadd       +1
+  @   22  line  11  (v9 .* in3)                            elem_smul    +4
+  @   23  line  12  (v10 - in4)                            matsub       +1
+  @   24  line  13  (v11 + in5)                            matadd       +1
+  @   28  line  14  (v12 .* in6)                           elem_smul    +4
+  @   29  line  15  (v13 - in0)                            matsub       +1
+  @   30  line  16  (v14 + in1)                            matadd       +1
+  @   34  line  17  (v15 .* in2)                           elem_smul    +4
+  @   35  line  18  (v16 - in3)                            matsub       +1
+  @   36  line  19  (v17 + in4)                            matadd       +1
+  @   40  line  20  (v18 .* in5)                           elem_smul    +4
+  @   41  line  21  (v19 - in6)                            matsub       +1
+  @   42  line  22  (v20 + in0)                            matadd       +1
+  @   46  line  23  (v21 .* in1)                           elem_smul    +4
+  @   47  line  24  (v22 - in2)                            matsub       +1
+  @   48  line  25  (v23 + in3)                            matadd       +1
+  @   52  line  26  (v24 .* in4)                           elem_smul    +4
+  @   53  line  27  (v25 - in5)                            matsub       +1
+  @   54  line  28  (v26 + in6)                            matadd       +1
+  @   58  line  29  (v27 .* in0)                           elem_smul    +4
+  @   59  line  30  (v28 - in1)                            matsub       +1
+  @   60  line  31  (v29 + in2)                            matadd       +1
+  @   64  line  32  (v30 .* in3)                           elem_smul    +4
+  @   65  line  33  (v31 - in4)                            matsub       +1
+  @   66  line  34  (v32 + in5)                            matadd       +1
+  @   70  line  35  (v33 .* in6)                           elem_smul    +4
+  @   71  line  36  (v34 - in0)                            matsub       +1
+  @   72  line  37  (v35 + in1)                            matadd       +1
+  @   76  line  38  (v36 .* in2)                           elem_smul    +4
+  @   77  line  39  (v37 - in3)                            matsub       +1
+  @   78  line  40  (v38 + in4)                            matadd       +1
+  @   82  line  41  (v39 .* in5)                           elem_smul    +4
+  @   83  line  42  (v40 - in6)                            matsub       +1
+  @   84  line  43  (v41 + in0)                            matadd       +1
+  @   88  line  44  (v42 .* in1)                           elem_smul    +4
+  @   89  line  45  (v43 - in2)                            matsub       +1
+  @   90  line  46  (v44 + in3)                            matadd       +1
+  @   94  line  47  (v45 .* in4)                           elem_smul    +4
+  @   95  line  48  (v46 - in5)                            matsub       +1
+  @   96  line  49  (v47 + in6)                            matadd       +1
+  @  100  line  50  (v48 .* in0)                           elem_smul    +4
+  @  114  line  51  sqrt(v49)                              elem_usqrt   +14
+  @  142  line  51  (sqrt(v49) ./ d0)                      elem_sdiv    +28
+  @  143  line  52  (v50 + in2)                            matadd       +1
+  @  147  line  53  (v51 .* in3)                           elem_smul    +4
+  @  148  line  54  (v52 - in4)                            matsub       +1
+  @  149  line  55  (v53 + in5)                            matadd       +1
+  @  153  line  56  (v54 .* in6)                           elem_smul    +4
+  @  154  line  57  (v55 - in0)                            matsub       +1
+  @  155  line  58  (v56 + in1)                            matadd       +1
+  @  159  line  59  (v57 .* in2)                           elem_smul    +4
+  @  160  line  60  (v58 - in3)                            matsub       +1
+  @  161  line  61  (v59 + in4)                            matadd       +1
+  @  165  line  62  (v60 .* in5)                           elem_smul    +4
+  @  166  line  63  (v61 - in6)                            matsub       +1
+  @  167  line  64  (v62 + in0)                            matadd       +1
+  @  171  line  65  (v63 .* in1)                           elem_smul    +4
+  @  172  line  66  (v64 - in2)                            matsub       +1
+  @  173  line  67  (v65 + in3)                            matadd       +1
+  @  177  line  68  (v66 .* in4)                           elem_smul    +4
+  @  178  line  69  (v67 - in5)                            matsub       +1
+  @  179  line  70  (v68 + in6)                            matadd       +1
+  @  183  line  71  (v69 .* in0)                           elem_smul    +4
+  @  184  line  72  (v70 - in1)                            matsub       +1
+  @  185  line  73  (v71 + in2)                            matadd       +1
+  @  189  line  74  (v72 .* in3)                           elem_smul    +4
+  @  190  line  75  (v73 - in4)                            matsub       +1
+  @  191  line  76  (v74 + in5)                            matadd       +1
+  @  195  line  77  (v75 .* in6)                           elem_smul    +4
+  @  196  line  78  (v76 - in0)                            matsub       +1
+  @  197  line  79  (v77 + in1)                            matadd       +1
+  @  201  line  80  (v78 .* in2)                           elem_smul    +4
+  @  202  line  81  (v79 - in3)                            matsub       +1
+  @  203  line  82  (v80 + in4)                            matadd       +1
+  @  207  line  83  (v81 .* in5)                           elem_smul    +4
+  @  208  line  84  (v82 - in6)                            matsub       +1
+  @  209  line  85  (v83 + in0)                            matadd       +1
+  @  213  line  86  (v84 .* in1)                           elem_smul    +4
+  @  214  line  87  (v85 - in2)                            matsub       +1
+  @  215  line  88  (v86 + in3)                            matadd       +1
+  @  219  line  89  (v87 .* in4)                           elem_smul    +4
+  @  220  line  90  (v88 - in5)                            matsub       +1
+  @  221  line  91  (v89 + in6)                            matadd       +1
+  @  225  line  92  (v90 .* in0)                           elem_smul    +4
+  @  226  line  93  (v91 - in1)                            matsub       +1
+  @  227  line  94  (v92 + in2)                            matadd       +1
+  @  231  line  95  (v93 .* in3)                           elem_smul    +4
+  @  232  line  96  (v94 - in4)                            matsub       +1
+  @  233  line  97  (v95 + in5)                            matadd       +1
+  @  237  line  98  (v96 .* in6)                           elem_smul    +4
+  @  238  line  99  (v97 - in0)                            matsub       +1
+  @  239  line 100  (v98 + in1)                            matadd       +1
+  @  253  line 101  sqrt(v99)                              elem_usqrt   +14
+  @  281  line 101  (sqrt(v99) ./ d0)                      elem_sdiv    +28
+  @  282  line 102  (v100 - in3)                           matsub       +1
+  @  283  line 103  (v101 + in4)                           matadd       +1
+  @  287  line 104  (v102 .* in5)                          elem_smul    +4
+  @  288  line 105  (v103 - in6)                           matsub       +1
+  @  289  line 106  (v104 + in0)                           matadd       +1
+  @  293  line 107  (v105 .* in1)                          elem_smul    +4
+  @  294  line 108  (v106 - in2)                           matsub       +1
+  @  295  line 109  (v107 + in3)                           matadd       +1
+  @  299  line 110  (v108 .* in4)                          elem_smul    +4
+  @  300  line 111  (v109 - in5)                           matsub       +1
+  @  301  line 112  (v110 + in6)                           matadd       +1
+  @  305  line 113  (v111 .* in0)                          elem_smul    +4
+  @  306  line 114  (v112 - in1)                           matsub       +1
+  @  307  line 115  (v113 + in2)                           matadd       +1
+  @  311  line 116  (v114 .* in3)                          elem_smul    +4
+  @  312  line 117  (v115 - in4)                           matsub       +1
+  @  313  line 118  (v116 + in5)                           matadd       +1
+  @  317  line 119  (v117 .* in6)                          elem_smul    +4
+  @  318  line 120  (v118 - in0)                           matsub       +1
+  @  319  line 121  (v119 + in1)                           matadd       +1
+  @  323  line 122  (v120 .* in2)                          elem_smul    +4
+  @  324  line 123  (v121 - in3)                           matsub       +1
+  @  325  line 124  (v122 + in4)                           matadd       +1
+  @  329  line 125  (v123 .* in5)                          elem_smul    +4
+  @  330  line 126  (v124 - in6)                           matsub       +1
+  @  331  line 127  (v125 + in0)                           matadd       +1
+  @  335  line 128  (v126 .* in1)                          elem_smul    +4
+  @  336  line 129  (v127 - in2)                           matsub       +1
+  @  337  line 130  (v128 + in3)                           matadd       +1
+  @  341  line 131  (v129 .* in4)                          elem_smul    +4
+  @  342  line 132  (v130 - in5)                           matsub       +1
+  @  343  line 133  (v131 + in6)                           matadd       +1
+  @  347  line 134  (v132 .* in0)                          elem_smul    +4
+  @  348  line 135  (v133 - in1)                           matsub       +1
+  @  349  line 136  (v134 + in2)                           matadd       +1
+  @  353  line 137  (v135 .* in3)                          elem_smul    +4
+  @  354  line 138  (v136 - in4)                           matsub       +1
+  @  355  line 139  (v137 + in5)                           matadd       +1
+  @  359  line 140  (v138 .* in6)                          elem_smul    +4
+  @  360  line 141  (v139 - in0)                           matsub       +1
+  @  361  line 142  (v140 + in1)                           matadd       +1
+  @  365  line 143  (v141 .* in2)                          elem_smul    +4
+  @  366  line 144  (v142 - in3)                           matsub       +1
+  @  367  line 145  (v143 + in4)                           matadd       +1
+  @  371  line 146  (v144 .* in5)                          elem_smul    +4
+  @  372  line 147  (v145 - in6)                           matsub       +1
+  @  373  line 148  (v146 + in0)                           matadd       +1
+  @  377  line 149  (v147 .* in1)                          elem_smul    +4
+  @  378  line 150  (v148 - in2)                           matsub       +1
+  @  392  line 151  sqrt(v149)                             elem_usqrt   +14
+  @  420  line 151  (sqrt(v149) ./ d0)                     elem_sdiv    +28
+  @  424  line 152  (v150 .* in4)                          elem_smul    +4
+  @  425  line 153  (v151 - in5)                           matsub       +1
+  @  426  line 154  (v152 + in6)                           matadd       +1
+  @  430  line 155  (v153 .* in0)                          elem_smul    +4
+  @  431  line 156  (v154 - in1)                           matsub       +1
+  @  432  line 157  (v155 + in2)                           matadd       +1
+  @  436  line 158  (v156 .* in3)                          elem_smul    +4
+  @  437  line 159  (v157 - in4)                           matsub       +1
+  @  438  line 160  (v158 + in5)                           matadd       +1
+  @  442  line 161  (v159 .* in6)                          elem_smul    +4
+  @  443  line 162  (v160 - in0)                           matsub       +1
+  @  444  line 163  (v161 + in1)                           matadd       +1
+  @  448  line 164  (v162 .* in2)                          elem_smul    +4
+  @  449  line 165  (v163 - in3)                           matsub       +1
+  @  450  line 166  (v164 + in4)                           matadd       +1
+  @  454  line 167  (v165 .* in5)                          elem_smul    +4
+  @  455  line 168  (v166 - in6)                           matsub       +1
+  @  456  line 169  (v167 + in0)                           matadd       +1
+  @  460  line 170  (v168 .* in1)                          elem_smul    +4
+  @  461  line 171  (v169 - in2)                           matsub       +1
+  @  462  line 172  (v170 + in3)                           matadd       +1
+  @  466  line 173  (v171 .* in4)                          elem_smul    +4
+  @  467  line 174  (v172 - in5)                           matsub       +1
+  @  468  line 175  (v173 + in6)                           matadd       +1
+  @  472  line 176  (v174 .* in0)                          elem_smul    +4
+  @  473  line 177  (v175 - in1)                           matsub       +1
+  @  474  line 178  (v176 + in2)                           matadd       +1
+  @  478  line 179  (v177 .* in3)                          elem_smul    +4
+  @  479  line 180  (v178 - in4)                           matsub       +1
+  @  480  line 181  (v179 + in5)                           matadd       +1
+  @  484  line 182  (v180 .* in6)                          elem_smul    +4
+  @  485  line 183  (v181 - in0)                           matsub       +1
+  @  486  line 184  (v182 + in1)                           matadd       +1
+  @  490  line 185  (v183 .* in2)                          elem_smul    +4
+  @  491  line 186  (v184 - in3)                           matsub       +1
+  @  492  line 187  (v185 + in4)                           matadd       +1
+  @  496  line 188  (v186 .* in5)                          elem_smul    +4
+  @  497  line 189  (v187 - in6)                           matsub       +1
+  @  498  line 190  (v188 + in0)                           matadd       +1
+  @  502  line 191  (v189 .* in1)                          elem_smul    +4
+  @  503  line 192  (v190 - in2)                           matsub       +1
+  @  504  line 193  (v191 + in3)                           matadd       +1
+  @  508  line 194  (v192 .* in4)                          elem_smul    +4
+  @  509  line 195  (v193 - in5)                           matsub       +1
+  @  510  line 196  (v194 + in6)                           matadd       +1
+  @  514  line 197  (v195 .* in0)                          elem_smul    +4
+  @  515  line 198  (v196 - in1)                           matsub       +1
+  @  516  line 199  (v197 + in2)                           matadd       +1
+  @  520  line 200  (v198 .* in3)                          elem_smul    +4
+  @  534  line 201  sqrt(v199)                             elem_usqrt   +14
+  @  562  line 201  (sqrt(v199) ./ d0)                     elem_sdiv    +28
+  @  563  line 202  (v200 + in5)                           matadd       +1
+  @  567  line 203  (v201 .* in6)                          elem_smul    +4
+  @  568  line 204  (v202 - in0)                           matsub       +1
+  @  569  line 205  (v203 + in1)                           matadd       +1
+  @  573  line 206  (v204 .* in2)                          elem_smul    +4
+  @  574  line 207  (v205 - in3)                           matsub       +1
+  @  575  line 208  (v206 + in4)                           matadd       +1
+  @  579  line 209  (v207 .* in5)                          elem_smul    +4
+  @  580  line 210  (v208 - in6)                           matsub       +1
+  @  581  line 211  (v209 + in0)                           matadd       +1
+  @  585  line 212  (v210 .* in1)                          elem_smul    +4
+  @  586  line 213  (v211 - in2)                           matsub       +1
+  @  587  line 214  (v212 + in3)                           matadd       +1
+  @  591  line 215  (v213 .* in4)                          elem_smul    +4
+  @  592  line 216  (v214 - in5)                           matsub       +1
+  @  593  line 217  (v215 + in6)                           matadd       +1
+  @  597  line 218  (v216 .* in0)                          elem_smul    +4
+  @  598  line 219  (v217 - in1)                           matsub       +1
+  @  599  line 220  (v218 + in2)                           matadd       +1
+  @  603  line 221  (v219 .* in3)                          elem_smul    +4
+  @  604  line 222  (v220 - in4)                           matsub       +1
+  @  605  line 223  (v221 + in5)                           matadd       +1
+  @  609  line 224  (v222 .* in6)                          elem_smul    +4
+  @  610  line 225  (v223 - in0)                           matsub       +1
+  @  611  line 226  (v224 + in1)                           matadd       +1
+  @  615  line 227  (v225 .* in2)                          elem_smul    +4
+  @  616  line 228  (v226 - in3)                           matsub       +1
+  @  617  line 229  (v227 + in4)                           matadd       +1
+  @  621  line 230  (v228 .* in5)                          elem_smul    +4
+  @  622  line 231  (v229 - in6)                           matsub       +1
+  @  623  line 232  (v230 + in0)                           matadd       +1
+  @  627  line 233  (v231 .* in1)                          elem_smul    +4
+  @  628  line 234  (v232 - in2)                           matsub       +1
+  @  629  line 235  (v233 + in3)                           matadd       +1
+  @  633  line 236  (v234 .* in4)                          elem_smul    +4
+  @  634  line 237  (v235 - in5)                           matsub       +1
+  @  635  line 238  (v236 + in6)                           matadd       +1
+  @  639  line 239  (v237 .* in0)                          elem_smul    +4
+  @  640  line 240  (v238 - in1)                           matsub       +1
+  @  641  line 241  (v239 + in2)                           matadd       +1
+  @  645  line 242  (v240 .* in3)                          elem_smul    +4
+  @  646  line 243  (v241 - in4)                           matsub       +1
+  @  647  line 244  (v242 + in5)                           matadd       +1
+  @  651  line 245  (v243 .* in6)                          elem_smul    +4
+  @  652  line 246  (v244 - in0)                           matsub       +1
+  @  653  line 247  (v245 + in1)                           matadd       +1
+  @  657  line 248  (v246 .* in2)                          elem_smul    +4
+  @  658  line 249  (v247 - in3)                           matsub       +1
+  @  659  line 250  (v248 + in4)                           matadd       +1
+  @  673  line 251  sqrt(v249)                             elem_usqrt   +14
+  @  701  line 251  (sqrt(v249) ./ d0)                     elem_sdiv    +28
+  @  702  line 252  (v250 - in6)                           matsub       +1
+  @  703  line 253  (v251 + in0)                           matadd       +1
+  @  707  line 254  (v252 .* in1)                          elem_smul    +4
+  @  708  line 255  (v253 - in2)                           matsub       +1
+  @  709  line 256  (v254 + in3)                           matadd       +1
+  @  713  line 257  (v255 .* in4)                          elem_smul    +4
+  @  714  line 258  (v256 - in5)                           matsub       +1
+  @  715  line 259  (v257 + in6)                           matadd       +1
+  @  719  line 260  (v258 .* in0)                          elem_smul    +4
+  @  720  line 261  (v259 - in1)                           matsub       +1
+  @  721  line 262  (v260 + in2)                           matadd       +1
+  @  725  line 263  (v261 .* in3)                          elem_smul    +4
+  @  726  line 264  (v262 - in4)                           matsub       +1
+  @  727  line 265  (v263 + in5)                           matadd       +1
+  @  731  line 266  (v264 .* in6)                          elem_smul    +4
+  @  732  line 267  (v265 - in0)                           matsub       +1
+  @  733  line 268  (v266 + in1)                           matadd       +1
+  @  737  line 269  (v267 .* in2)                          elem_smul    +4
+  @  738  line 270  (v268 - in3)                           matsub       +1
+  @  739  line 271  (v269 + in4)                           matadd       +1
+  @  743  line 272  (v270 .* in5)                          elem_smul    +4
+  @  744  line 273  (v271 - in6)                           matsub       +1
+  @  745  line 274  (v272 + in0)                           matadd       +1
+  @  749  line 275  (v273 .* in1)                          elem_smul    +4
+  @  750  line 276  (v274 - in2)                           matsub       +1
+  @  751  line 277  (v275 + in3)                           matadd       +1
+  @  755  line 278  (v276 .* in4)                          elem_smul    +4
+  @  756  line 279  (v277 - in5)                           matsub       +1
+  @  757  line 280  (v278 + in6)                           matadd       +1
+  @  761  line 281  (v279 .* in0)                          elem_smul    +4
+  @  762  line 282  (v280 - in1)                           matsub       +1
+  @  763  line 283  (v281 + in2)                           matadd       +1
+  @  767  line 284  (v282 .* in3)                          elem_smul    +4
+  @  768  line 285  (v283 - in4)                           matsub       +1
+  @  769  line 286  (v284 + in5)                           matadd       +1
+  @  773  line 287  (v285 .* in6)                          elem_smul    +4
+  @  774  line 288  (v286 - in0)                           matsub       +1
+  @  775  line 289  (v287 + in1)                           matadd       +1
+  @  779  line 290  (v288 .* in2)                          elem_smul    +4
+  @  780  line 291  (v289 - in3)                           matsub       +1
+  @  781  line 292  (v290 + in4)                           matadd       +1
+  @  785  line 293  (v291 .* in5)                          elem_smul    +4
+  @  786  line 294  (v292 - in6)                           matsub       +1
+  @  787  line 295  (v293 + in0)                           matadd       +1
+  @  791  line 296  (v294 .* in1)                          elem_smul    +4
+  @  792  line 297  (v295 - in2)                           matsub       +1
+  @  793  line 298  (v296 + in3)                           matadd       +1
+  @  797  line 299  (v297 .* in4)                          elem_smul    +4
+  @  798  line 300  (v298 - in5)                           matsub       +1
+  @  812  line 301  sqrt(v299)                             elem_usqrt   +14
+  @  840  line 301  (sqrt(v299) ./ d0)                     elem_sdiv    +28
+  @  844  line 302  (v300 .* in0)                          elem_smul    +4
+  @  845  line 303  (v301 - in1)                           matsub       +1
+  @  846  line 304  (v302 + in2)                           matadd       +1
+  @  850  line 305  (v303 .* in3)                          elem_smul    +4
+  @  851  line 306  (v304 - in4)                           matsub       +1
+  @  852  line 307  (v305 + in5)                           matadd       +1
+  @  856  line 308  (v306 .* in6)                          elem_smul    +4
+  @  857  line 309  (v307 - in0)                           matsub       +1
+  @  858  line 310  (v308 + in1)                           matadd       +1
+  @  862  line 311  (v309 .* in2)                          elem_smul    +4
+  @  863  line 312  (v310 - in3)                           matsub       +1
+  @  864  line 313  (v311 + in4)                           matadd       +1
+  @  868  line 314  (v312 .* in5)                          elem_smul    +4
+  @  869  line 315  (v313 - in6)                           matsub       +1
+  @  870  line 316  (v314 + in0)                           matadd       +1
+  @  874  line 317  (v315 .* in1)                          elem_smul    +4
+  @  875  line 318  (v316 - in2)                           matsub       +1
+  @  876  line 319  (v317 + in3)                           matadd       +1
+  @  880  line 320  (v318 .* in4)                          elem_smul    +4
+  @  881  line 321  (v319 - in5)                           matsub       +1
+  @  882  line 322  (v320 + in6)                           matadd       +1
+  @  886  line 323  (v321 .* in0)                          elem_smul    +4
+  @  887  line 324  (v322 - in1)                           matsub       +1
+  @  888  line 325  (v323 + in2)                           matadd       +1
+  @  892  line 326  (v324 .* in3)                          elem_smul    +4
+  @  893  line 327  (v325 - in4)                           matsub       +1
+  @  894  line 328  (v326 + in5)                           matadd       +1
+  @  898  line 329  (v327 .* in6)                          elem_smul    +4
+  @  899  line 330  (v328 - in0)                           matsub       +1
+  @  900  line 331  (v329 + in1)                           matadd       +1
+  @  904  line 332  (v330 .* in2)                          elem_smul    +4
+  @  905  line 333  (v331 - in3)                           matsub       +1
+  @  906  line 334  (v332 + in4)                           matadd       +1
+  @  910  line 335  (v333 .* in5)                          elem_smul    +4
+  @  911  line 336  (v334 - in6)                           matsub       +1
+  @  912  line 337  (v335 + in0)                           matadd       +1
+  @  916  line 338  (v336 .* in1)                          elem_smul    +4
+  @  917  line 339  (v337 - in2)                           matsub       +1
+  @  918  line 340  (v338 + in3)                           matadd       +1
+  @  922  line 341  (v339 .* in4)                          elem_smul    +4
+  @  923  line 342  (v340 - in5)                           matsub       +1
+  @  924  line 343  (v341 + in6)                           matadd       +1
+  @  928  line 344  (v342 .* in0)                          elem_smul    +4
+  @  929  line 345  (v343 - in1)                           matsub       +1
+  @  930  line 346  (v344 + in2)                           matadd       +1
+  @  934  line 347  (v345 .* in3)                          elem_smul    +4
+  @  935  line 348  (v346 - in4)                           matsub       +1
+  @  936  line 349  (v347 + in5)                           matadd       +1
+  @  940  line 350  (v348 .* in6)                          elem_smul    +4
+  @  954  line 351  sqrt(v349)                             elem_usqrt   +14
+  @  982  line 351  (sqrt(v349) ./ d0)                     elem_sdiv    +28
+  @  983  line 352  (v350 + in1)                           matadd       +1
+  @  987  line 353  (v351 .* in2)                          elem_smul    +4
+  @  988  line 354  (v352 - in3)                           matsub       +1
+  @  989  line 355  (v353 + in4)                           matadd       +1
+  @  993  line 356  (v354 .* in5)                          elem_smul    +4
+  @  994  line 357  (v355 - in6)                           matsub       +1
+  @  995  line 358  (v356 + in0)                           matadd       +1
+  @  999  line 359  (v357 .* in1)                          elem_smul    +4
+  @ 1000  line 360  (v358 - in2)                           matsub       +1
+  @ 1001  line 361  (v359 + in3)                           matadd       +1
+  @ 1005  line 362  (v360 .* in4)                          elem_smul    +4
+  @ 1006  line 363  (v361 - in5)                           matsub       +1
+  @ 1007  line 364  (v362 + in6)                           matadd       +1
+  @ 1011  line 365  (v363 .* in0)                          elem_smul    +4
+  @ 1012  line 366  (v364 - in1)                           matsub       +1
+  @ 1013  line 367  (v365 + in2)                           matadd       +1
+  @ 1017  line 368  (v366 .* in3)                          elem_smul    +4
+  @ 1018  line 369  (v367 - in4)                           matsub       +1
+  @ 1019  line 370  (v368 + in5)                           matadd       +1
+  @ 1023  line 371  (v369 .* in6)                          elem_smul    +4
+  @ 1024  line 372  (v370 - in0)                           matsub       +1
+  @ 1025  line 373  (v371 + in1)                           matadd       +1
+  @ 1029  line 374  (v372 .* in2)                          elem_smul    +4
+  @ 1030  line 375  (v373 - in3)                           matsub       +1
+  @ 1031  line 376  (v374 + in4)                           matadd       +1
+  @ 1035  line 377  (v375 .* in5)                          elem_smul    +4
+  @ 1036  line 378  (v376 - in6)                           matsub       +1
+  @ 1037  line 379  (v377 + in0)                           matadd       +1
+  @ 1041  line 380  (v378 .* in1)                          elem_smul    +4
+  @ 1042  line 381  (v379 - in2)                           matsub       +1
+  @ 1043  line 382  (v380 + in3)                           matadd       +1
+  @ 1047  line 383  (v381 .* in4)                          elem_smul    +4
+  @ 1048  line 384  (v382 - in5)                           matsub       +1
+  @ 1049  line 385  (v383 + in6)                           matadd       +1
+  @ 1053  line 386  (v384 .* in0)                          elem_smul    +4
+  @ 1054  line 387  (v385 - in1)                           matsub       +1
+  @ 1055  line 388  (v386 + in2)                           matadd       +1
+  @ 1059  line 389  (v387 .* in3)                          elem_smul    +4
+  @ 1060  line 390  (v388 - in4)                           matsub       +1
+  @ 1061  line 391  (v389 + in5)                           matadd       +1
+  @ 1065  line 392  (v390 .* in6)                          elem_smul    +4
+  @ 1066  line 393  (v391 - in0)                           matsub       +1
+  @ 1067  line 394  (v392 + in1)                           matadd       +1
+  @ 1071  line 395  (v393 .* in2)                          elem_smul    +4
+  @ 1072  line 396  (v394 - in3)                           matsub       +1
+  @ 1073  line 397  (v395 + in4)                           matadd       +1
+  @ 1077  line 398  (v396 .* in5)                          elem_smul    +4
+  @ 1078  line 399  (v397 - in6)                           matsub       +1
+  @ 1079  line 400  (v398 + in0)                           matadd       +1
+  @ 1093  line 401  sqrt(v399)                             elem_usqrt   +14
+  @ 1121  line 401  (sqrt(v399) ./ d0)                     elem_sdiv    +28
+  @ 1122  line 402  (v400 - in2)                           matsub       +1
+  @ 1123  line 403  (v401 + in3)                           matadd       +1
+  @ 1127  line 404  (v402 .* in4)                          elem_smul    +4
+  @ 1128  line 405  (v403 - in5)                           matsub       +1
+  @ 1129  line 406  (v404 + in6)                           matadd       +1
+  @ 1133  line 407  (v405 .* in0)                          elem_smul    +4
+  @ 1134  line 408  (v406 - in1)                           matsub       +1
+  @ 1135  line 409  (v407 + in2)                           matadd       +1
+  @ 1139  line 410  (v408 .* in3)                          elem_smul    +4
+  @ 1140  line 411  (v409 - in4)                           matsub       +1
+  @ 1141  line 412  (v410 + in5)                           matadd       +1
+  @ 1145  line 413  (v411 .* in6)                          elem_smul    +4
+  @ 1146  line 414  (v412 - in0)                           matsub       +1
+  @ 1147  line 415  (v413 + in1)                           matadd       +1
+  @ 1151  line 416  (v414 .* in2)                          elem_smul    +4
+  @ 1152  line 417  (v415 - in3)                           matsub       +1
+  @ 1153  line 418  (v416 + in4)                           matadd       +1
+  @ 1157  line 419  (v417 .* in5)                          elem_smul    +4
+  @ 1158  line 420  (v418 - in6)                           matsub       +1
+  @ 1159  line 421  (v419 + in0)                           matadd       +1
+  @ 1163  line 422  (v420 .* in1)                          elem_smul    +4
+  @ 1164  line 423  (v421 - in2)                           matsub       +1
+  @ 1165  line 424  (v422 + in3)                           matadd       +1
+  @ 1169  line 425  (v423 .* in4)                          elem_smul    +4
+  @ 1170  line 426  (v424 - in5)                           matsub       +1
+  @ 1171  line 427  (v425 + in6)                           matadd       +1
+  @ 1175  line 428  (v426 .* in0)                          elem_smul    +4
+  @ 1176  line 429  (v427 - in1)                           matsub       +1
+  @ 1177  line 430  (v428 + in2)                           matadd       +1
+  @ 1181  line 431  (v429 .* in3)                          elem_smul    +4
+  @ 1182  line 432  (v430 - in4)                           matsub       +1
+  @ 1183  line 433  (v431 + in5)                           matadd       +1
+  @ 1187  line 434  (v432 .* in6)                          elem_smul    +4
+  @ 1188  line 435  (v433 - in0)                           matsub       +1
+  @ 1189  line 436  (v434 + in1)                           matadd       +1
+  @ 1193  line 437  (v435 .* in2)                          elem_smul    +4
+  @ 1194  line 438  (v436 - in3)                           matsub       +1
+  @ 1195  line 439  (v437 + in4)                           matadd       +1
+  @ 1199  line 440  (v438 .* in5)                          elem_smul    +4
+  @ 1200  line 441  (v439 - in6)                           matsub       +1
+  @ 1201  line 442  (v440 + in0)                           matadd       +1
+  @ 1205  line 443  (v441 .* in1)                          elem_smul    +4
+  @ 1206  line 444  (v442 - in2)                           matsub       +1
+  @ 1207  line 445  (v443 + in3)                           matadd       +1
+  @ 1211  line 446  (v444 .* in4)                          elem_smul    +4
+  @ 1212  line 447  (v445 - in5)                           matsub       +1
+  @ 1213  line 448  (v446 + in6)                           matadd       +1
+  @ 1217  line 449  (v447 .* in0)                          elem_smul    +4
+  @ 1218  line 450  (v448 - in1)                           matsub       +1
+  @ 1232  line 451  sqrt(v449)                             elem_usqrt   +14
+  @ 1260  line 451  (sqrt(v449) ./ d0)                     elem_sdiv    +28
+  @ 1264  line 452  (v450 .* in3)                          elem_smul    +4
+  @ 1265  line 453  (v451 - in4)                           matsub       +1
+  @ 1266  line 454  (v452 + in5)                           matadd       +1
+  @ 1270  line 455  (v453 .* in6)                          elem_smul    +4
+  @ 1271  line 456  (v454 - in0)                           matsub       +1
+  @ 1272  line 457  (v455 + in1)                           matadd       +1
+  @ 1276  line 458  (v456 .* in2)                          elem_smul    +4
+  @ 1277  line 459  (v457 - in3)                           matsub       +1
+  @ 1278  line 460  (v458 + in4)                           matadd       +1
+  @ 1282  line 461  (v459 .* in5)                          elem_smul    +4
+  @ 1283  line 462  (v460 - in6)                           matsub       +1
+  @ 1284  line 463  (v461 + in0)                           matadd       +1
+  @ 1288  line 464  (v462 .* in1)                          elem_smul    +4
+  @ 1289  line 465  (v463 - in2)                           matsub       +1
+  @ 1290  line 466  (v464 + in3)                           matadd       +1
+  @ 1294  line 467  (v465 .* in4)                          elem_smul    +4
+  @ 1295  line 468  (v466 - in5)                           matsub       +1
+  @ 1296  line 469  (v467 + in6)                           matadd       +1
+  @ 1300  line 470  (v468 .* in0)                          elem_smul    +4
+  @ 1301  line 471  (v469 - in1)                           matsub       +1
+  @ 1302  line 472  (v470 + in2)                           matadd       +1
+  @ 1306  line 473  (v471 .* in3)                          elem_smul    +4
+  @ 1307  line 474  (v472 - in4)                           matsub       +1
+  @ 1308  line 475  (v473 + in5)                           matadd       +1
+  @ 1312  line 476  (v474 .* in6)                          elem_smul    +4
+  @ 1313  line 477  (v475 - in0)                           matsub       +1
+  @ 1314  line 478  (v476 + in1)                           matadd       +1
+  @ 1318  line 479  (v477 .* in2)                          elem_smul    +4
+  @ 1319  line 480  (v478 - in3)                           matsub       +1
+  @ 1320  line 481  (v479 + in4)                           matadd       +1
+  @ 1324  line 482  (v480 .* in5)                          elem_smul    +4
+  @ 1325  line 483  (v481 - in6)                           matsub       +1
+  @ 1326  line 484  (v482 + in0)                           matadd       +1
+  @ 1330  line 485  (v483 .* in1)                          elem_smul    +4
+  @ 1331  line 486  (v484 - in2)                           matsub       +1
+  @ 1332  line 487  (v485 + in3)                           matadd       +1
+  @ 1336  line 488  (v486 .* in4)                          elem_smul    +4
+  @ 1337  line 489  (v487 - in5)                           matsub       +1
+  @ 1338  line 490  (v488 + in6)                           matadd       +1
+  @ 1342  line 491  (v489 .* in0)                          elem_smul    +4
+  @ 1343  line 492  (v490 - in1)                           matsub       +1
+  @ 1344  line 493  (v491 + in2)                           matadd       +1
+  @ 1348  line 494  (v492 .* in3)                          elem_smul    +4
+  @ 1349  line 495  (v493 - in4)                           matsub       +1
+  @ 1350  line 496  (v494 + in5)                           matadd       +1
+  @ 1354  line 497  (v495 .* in6)                          elem_smul    +4
+  @ 1355  line 498  (v496 - in0)                           matsub       +1
+  @ 1356  line 499  (v497 + in1)                           matadd       +1
+  @ 1360  line 500  (v498 .* in2)                          elem_smul    +4
+  @ 1374  line 501  sqrt(v499)                             elem_usqrt   +14
+  @ 1402  line 501  (sqrt(v499) ./ d0)                     elem_sdiv    +28
+
+== operator census ==  (510 instances, 10 dividers)
+  elem_sdiv      x 10   << divider
+  elem_smul      x 164
+  elem_usqrt     x 10
+  matadd         x 163
+  matsub         x 163
+
+== findings ==
+  [RECIP   ] line 51: 10 divisions share divisor 'd0'
+             -> compute r = 1/d0 once (elem_sinv) and multiply by r (elem_smul): 9 fewer dividers, 216 cycles of divider depth removed
+
+== skipped ==
+  (none)

@@ -1,0 +1,24 @@
+matlib_audit 1.0 — nkMatlib latency audit
+file: rootsqr.m
+fixedp: WIDTH=16 SCALE=12 LEFT=4
+latencies: ADD=1 MUL=4 DIV=28 SQRT=14 MATMUL=5 SUMSQR=5 ROOTSQR=19 CROSSP=5
+
+== statements ==
+  line   2  m            ready @   19  (+19)
+  line   3  d            ready @    5  (+5)
+  line   4  r            ready @   19  (+14)
+
+== critical path ==  total 19 cycles
+  @    0  line   2  v                                      input        
+  @   19  line   2  norm(v)                                rootsqr      +19
+
+== operator census ==  (3 instances, 0 dividers)
+  elem_usqrt     x 1
+  rootsqr        x 1
+  sumsqr         x 1
+
+== findings ==
+  (none)
+
+== skipped ==
+  (none)
