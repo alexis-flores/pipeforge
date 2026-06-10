@@ -118,11 +118,9 @@ class MainWindow(QMainWindow):
             "Open a MATLAB file to generate an nkMatlib SystemVerilog skeleton "
             "with all PIPE/valid bookkeeping computed automatically.",
         )
-        self.views["dse"] = PlaceholderView(
-            "Exploration",
-            "Open a MATLAB file to sweep WIDTH/SCALE grids and chart the "
-            "error-latency-area Pareto front.",
-        )
+        from pipeforge.gui.views.dse_view import DseView
+
+        self.views["dse"] = DseView(self.workspace)
         self.views["settings"] = SettingsView(self.workspace, self.themes)
         for name, _label, _icon in CAPABILITIES:
             self.stack.addWidget(self.views[name])

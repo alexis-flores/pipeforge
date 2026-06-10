@@ -157,6 +157,134 @@ def _cmd_codegen(args: argparse.Namespace) -> int:
     return 0
 
 
+def _parse_ranges(specs: list[str]) -> dict[str, tuple[float, float]]:
+    out: dict[str, tuple[float, float]] = {}
+    for spec in specs:
+        try:
+            name, bounds = spec.split("=", 1)
+            lo_s, hi_s = bounds.split(":", 1)
+            out[name.strip()] = (float(lo_s), float(hi_s))
+        except ValueError as exc:
+            raise SystemExit(f"bad --range '{spec}' (expected name=lo:hi)") from exc
+    return out
+
+
+def _cmd_ranges(args: argparse.Namespace) -> int:
+    import json as json_mod
+
+    from pipeforge.core.audit.engine import audit_source
+    from pipeforge.core.costmodel.model import CostModel
+    from pipeforge.core.ranges.interval import Interval
+    from pipeforge.core.ranges.propagate import RangeError, propagate, recommend_format
+
+    path = Path(args.file)
+    try:
+        src = path.read_text(encoding="utf-8")
+    except OSError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    cm = CostModel(args.width, args.scale)
+    audit = audit_source(src, path.name, cm)
+    declared = _parse_ranges(args.range or [])
+    ranges = {k: Interval(lo, hi) for k, (lo, hi) in declared.items()}
+    try:
+        report = propagate(audit.dag, ranges, cm, method=args.method)
+    except RangeError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    if args.json:
+        payload = {
+            "method": report.method,
+            "width": cm.width,
+            "scale": cm.scale,
+            "required_left": report.required_left,
+            "nodes": [
+                {
+                    "id": n.nid,
+                    "signal": n.signal,
+                    "lo": n.interval.lo,
+                    "hi": n.interval.hi,
+                    "integer_bits": n.integer_bits,
+                    "overflow_risk": n.overflow_risk,
+                    "near_zero_divisor": n.near_zero_divisor,
+                }
+                for n in report.nodes.values()
+            ],
+        }
+        print(json_mod.dumps(payload, indent=2))
+    else:
+        print(f"ranges {path.name} — method: {report.method}, WIDTH={cm.width} SCALE={cm.scale}")
+        print(f"  required LEFT bits: {report.required_left}")
+        for n in report.nodes.values():
+            flags = []
+            if n.overflow_risk:
+                flags.append("OVERFLOW RISK")
+            if n.near_zero_divisor:
+                flags.append("NEAR-ZERO DIVISOR")
+            suffix = ("   << " + ", ".join(flags)) if flags else ""
+            print(
+                f"  {n.signal:<14} [{n.interval.lo:.6g}, {n.interval.hi:.6g}] "
+                f"int bits {n.integer_bits}{suffix}"
+            )
+    if args.recommend is not None:
+        rec = recommend_format(audit.dag, ranges, cm, error_budget=args.recommend)
+        verdict = "validated" if rec.meets_budget else "NOT met empirically"
+        print(
+            f"  recommend WIDTH={rec.width} SCALE={rec.scale} ({rec.rationale}); "
+            f"budget {verdict}, worst SQNR {rec.validated_sqnr_db:.1f} dB"
+        )
+    return 0
+
+
+def _cmd_dse(args: argparse.Namespace) -> int:
+    import json as json_mod
+
+    from pipeforge.core.dse.sweep import (
+        SweepConfig,
+        export_csv,
+        pareto_front,
+        run_sweep,
+    )
+
+    path = Path(args.file)
+    try:
+        src = path.read_text(encoding="utf-8")
+    except OSError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    widths = tuple(int(w) for w in args.widths.split(","))
+    scales = tuple(int(s) for s in args.scales.split(","))
+    config = SweepConfig(widths=widths, scales=scales, vectors=args.vectors)
+
+    def progress(done: int, total: int) -> None:
+        if not args.json:
+            print(f"\r  sweep {done}/{total}", end="", flush=True)
+
+    points = run_sweep(src, path.name, config, progress=progress)
+    if not args.json:
+        print()
+    front = pareto_front(points)
+    if args.csv:
+        export_csv(points, Path(args.csv))
+    if args.json:
+        from dataclasses import asdict
+
+        print(
+            json_mod.dumps(
+                {"points": [asdict(p) for p in points], "pareto": [asdict(p) for p in front]},
+                indent=2,
+            )
+        )
+    else:
+        print(f"dse {path.name}: {len(points)} points, Pareto front:")
+        for p in front:
+            print(
+                f"  {p.width}/{p.scale}: latency {p.latency}, dividers {p.dividers}, "
+                f"max|e| {p.max_abs_error:.3g}, SQNR {p.sqnr_db:.1f} dB"
+            )
+    return 0
+
+
 def _add_fixedp_args(p: argparse.ArgumentParser) -> None:
     p.add_argument("-w", "--width", type=int, default=16, help="fixedp WIDTH (default 16)")
     p.add_argument("-s", "--scale", type=int, default=12, help="fixedp SCALE (default 12)")
@@ -221,6 +349,38 @@ def build_parser() -> argparse.ArgumentParser:
     p_gen.add_argument("-o", "--output", help="write to file instead of stdout")
     _add_fixedp_args(p_gen)
     p_gen.set_defaults(func=_cmd_codegen)
+
+    p_ranges = sub.add_parser(
+        "ranges", help="propagate value ranges; flag overflow and near-zero divisors"
+    )
+    p_ranges.add_argument("file", help="MATLAB script (.m)")
+    p_ranges.add_argument(
+        "--range",
+        action="append",
+        metavar="NAME=LO:HI",
+        help="declared input range (repeatable)",
+    )
+    p_ranges.add_argument(
+        "--method", choices=("interval", "affine"), default="interval", help="analysis method"
+    )
+    p_ranges.add_argument(
+        "--recommend",
+        type=float,
+        metavar="BUDGET",
+        help="also recommend WIDTH/SCALE for this absolute error budget",
+    )
+    _add_fixedp_args(p_ranges)
+    p_ranges.add_argument("--json", action="store_true", help="emit JSON instead of text")
+    p_ranges.set_defaults(func=_cmd_ranges)
+
+    p_dse = sub.add_parser("dse", help="sweep WIDTH/SCALE grids; report the Pareto front")
+    p_dse.add_argument("file", help="MATLAB script (.m)")
+    p_dse.add_argument("--widths", default="12,16,20,24", help="comma-separated WIDTH grid")
+    p_dse.add_argument("--scales", default="8,12,16", help="comma-separated SCALE grid")
+    p_dse.add_argument("--vectors", type=int, default=64, help="stimulus vectors per point")
+    p_dse.add_argument("--csv", help="export all points as CSV")
+    p_dse.add_argument("--json", action="store_true", help="emit JSON instead of text")
+    p_dse.set_defaults(func=_cmd_dse)
 
     return parser
 
