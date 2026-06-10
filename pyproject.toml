@@ -60,6 +60,13 @@ strict = true
 files = ["src/pipeforge/core"]
 warn_unreachable = true
 
+[[tool.mypy.overrides]]
+# pyslang ships .pyi stubs that mypy cannot parse; it is an optional
+# runtime-probed dependency (SL-1), so skip analyzing it.
+module = ["pyslang", "pyslang.*"]
+follow_imports = "skip"
+ignore_missing_imports = true
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-ra"
