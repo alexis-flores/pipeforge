@@ -80,7 +80,11 @@ class MainWindow(QMainWindow):
         self.toast = Toast(self)
         self.workspace.problem.connect(self._on_problem)
         self.workspace.logMessage.connect(self.log)
+        self.workspace.refreshStarted.connect(self._on_refresh_started)
+        self.workspace.refreshFinished.connect(self._on_refresh_finished)
+        self.workspace.snapshotStale.connect(self._on_snapshot_stale)
         self.workspace.snapshotChanged.connect(lambda _s: self._on_selection(""))
+        self.workspace.snapshotChanged.connect(lambda _s: self._sync_matlab_chip())
         self.workspace.auditChanged.connect(self._on_audit)
         self.workspace.fileChanged.connect(self._on_file)
         self.workspace.formatChanged.connect(lambda _w, _s: self._update_chips())
@@ -164,18 +168,77 @@ class MainWindow(QMainWindow):
         self.nav_buttons["audit"].setChecked(True)
 
     def _build_statusbar(self) -> None:
+        from PyQt6.QtCore import QTimer
+
+        from pipeforge.gui.widgets.chips import ClickableChip
+
         sb = self.statusBar()
         assert sb is not None
         self.file_label = QLabel("No file open — Ctrl+O to begin, Ctrl+Shift+D for demos")
         self.format_chip = QLabel()
         self.format_chip.setObjectName("chip")
+        self.matlab_chip = ClickableChip()
+        self.matlab_chip.hide()
+        self.matlab_chip.setToolTip("MATLAB snapshot state — click to refresh")
+        self.matlab_chip.clicked.connect(self.workspace.refresh_from_matlab)
+        self._matlab_elapsed = QTimer(self)
+        self._matlab_elapsed.setInterval(1000)
+        self._matlab_elapsed.timeout.connect(self._tick_matlab_chip)
+        self._matlab_started = 0.0
         self.tools_label = QLabel()
         self.tools_label.setObjectName("muted")
         sb.addWidget(self.file_label, 1)
+        sb.addPermanentWidget(self.matlab_chip)
         sb.addPermanentWidget(self.format_chip)
         sb.addPermanentWidget(self.tools_label)
         self._update_chips()
         self._update_tool_dots()
+
+    # -- MATLAB chip states (busy / fresh / stale) -----------------------------
+
+    def _on_refresh_started(self) -> None:
+        import time
+
+        self._matlab_started = time.monotonic()
+        self.matlab_chip.set_state("busy")
+        self.matlab_chip.setText("MATLAB ⟳ 0s")
+        self.matlab_chip.show()
+        self._matlab_elapsed.start()
+
+    def _tick_matlab_chip(self) -> None:
+        import time
+
+        elapsed = int(time.monotonic() - self._matlab_started)
+        self.matlab_chip.setText(f"MATLAB ⟳ {elapsed}s")
+
+    def _on_refresh_finished(self, message: str) -> None:
+        self._matlab_elapsed.stop()
+        if message:
+            self.toast.show_message(f"MATLAB snapshot updated — {message}")
+        self._sync_matlab_chip()
+
+    def _on_snapshot_stale(self, _stale: bool) -> None:
+        self._sync_matlab_chip()
+
+    def _sync_matlab_chip(self) -> None:
+        snapshot = self.workspace.snapshot
+        if self.workspace.refreshing:
+            return  # busy state owns the chip
+        if snapshot is None:
+            self.matlab_chip.hide()
+            return
+        self.matlab_chip.show()
+        if self.workspace.stale:
+            self.matlab_chip.set_state("warn")
+            self.matlab_chip.setText("MATLAB ⚠ stale")
+            self.matlab_chip.setToolTip(
+                "Watched files changed since this snapshot — click to refresh"
+            )
+        else:
+            self.matlab_chip.set_state("")
+            when = snapshot.timestamp.split(" ")[-1][:5] if snapshot.timestamp else ""
+            self.matlab_chip.setText(f"MATLAB ✓ {when} · {len(snapshot.variables)} vars")
+            self.matlab_chip.setToolTip("Snapshot is current — click to refresh anyway")
 
     def _build_inspector(self) -> None:
         self.inspector = QDockWidget("Inspector")

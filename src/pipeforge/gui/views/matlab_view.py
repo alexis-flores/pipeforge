@@ -56,6 +56,8 @@ class MatlabView(QWidget):
         self.filter_edit.textChanged.connect(lambda _t: self._refill())
         self.refresh_btn = QPushButton("Refresh from MATLAB")
         self.refresh_btn.clicked.connect(workspace.refresh_from_matlab)
+        workspace.refreshStarted.connect(self._on_refresh_started)
+        workspace.refreshFinished.connect(self._on_refresh_finished)
 
         header = QHBoxLayout()
         header.addWidget(self.filter_edit, 1)
@@ -84,6 +86,14 @@ class MatlabView(QWidget):
         box.addWidget(self.table, 1)
 
         workspace.snapshotChanged.connect(self._on_snapshot)
+
+    def _on_refresh_started(self) -> None:
+        self.refresh_btn.setEnabled(False)
+        self.refresh_btn.setText("Refreshing…")
+
+    def _on_refresh_finished(self, _message: str) -> None:
+        self.refresh_btn.setEnabled(True)
+        self.refresh_btn.setText("Refresh from MATLAB")
 
     # -- population ----------------------------------------------------------
 

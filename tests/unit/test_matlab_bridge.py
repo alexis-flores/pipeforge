@@ -122,25 +122,20 @@ class TestSnapshotModel:
         assert list(snap.variables) == ["x"]
 
 
-class TestQueryScript:
-    def test_renders_paths_and_guards(self, tmp_path: Path) -> None:
-        text = mb.render_query_script(
-            Path("/home/u/dsp.m"), Path("/home/u/data.mat"), tmp_path / "out.json"
-        )
+class TestSnapshotFunction:
+    def test_parameterized_function_with_guards(self) -> None:
+        text = mb.render_snapshot_function()
+        assert "function pf_snapshot(pf_q_ascript, pf_q_asetup, pf_q_aout)" in text
         assert "run(pf_q_script);" in text
-        assert "load(pf_q_setup);" in text  # .mat branch exists
-        assert "'/home/u/dsp.m'" in text
+        assert "if ~isempty(pf_q_script)" in text  # script optional (.mat alone)
+        assert "load(pf_q_setup);" in text  # .mat setup branch
+        assert "if ~isempty(pf_q_setup)" in text
         assert "jsonencode" in text
-        assert "pf_q_" in text  # locals are prefixed and filtered
+        # everything internal (args included) is pf_q_-prefixed and filtered
         assert "strncmp(pf_q_name, 'pf_q_', 5)" in text
 
-    def test_no_setup(self, tmp_path: Path) -> None:
-        text = mb.render_query_script(Path("/home/u/dsp.m"), None, tmp_path / "o.json")
-        assert "pf_q_setup = '';" in text
-
-    def test_quote_escaping(self, tmp_path: Path) -> None:
-        text = mb.render_query_script(Path("/home/u/it's.m"), None, tmp_path / "o.json")
-        assert "it''s.m" in text
+    def test_quote_escaping_helper(self) -> None:
+        assert mb._mq(Path("/home/u/it's.m")) == "/home/u/it''s.m"
 
 
 class TestCacheAndConfig:
@@ -364,10 +359,9 @@ class TestPortableDetection:
 class TestMatAloneSnapshots:
     """Script-optional snapshots: inspect a .mat parameter file by itself."""
 
-    def test_query_script_without_script_guards_run(self, tmp_path: Path) -> None:
-        text = mb.render_query_script(None, Path("/home/u/params.mat"), tmp_path / "o.json")
-        assert "pf_q_script = '';" in text
-        assert "if ~isempty(pf_q_script)" in text  # run is guarded
+    def test_snapshot_function_guards_empty_script(self) -> None:
+        text = mb.render_snapshot_function()
+        assert "if ~isempty(pf_q_script)" in text  # run is guarded (.mat alone)
         assert "load(pf_q_setup);" in text
 
     def test_take_snapshot_requires_something(

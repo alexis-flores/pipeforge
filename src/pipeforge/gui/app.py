@@ -23,6 +23,13 @@ def main() -> int:  # pragma: no cover - thin shell; pieces tested via pytest-qt
     workspace = Workspace()
     window = MainWindow(workspace, themes)
 
+    # warm MATLAB session: start in the background if enabled, stop on quit
+    from pipeforge.services.matlab_bridge import MatlabConfig
+
+    if MatlabConfig.load().warm:
+        workspace.start_warm_session()
+    app.aboutToQuit.connect(workspace.stop_warm_session)
+
     def excepthook(
         exc_type: type[BaseException], exc: BaseException, tb: TracebackType | None
     ) -> None:

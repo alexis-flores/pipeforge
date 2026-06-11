@@ -204,3 +204,91 @@ def test_mat_alone_refresh_no_script(
 
 def test_sidebar_shows_workspace_label(window: MainWindow) -> None:
     assert window.nav_buttons["golden"].accessibleName() == "Workspace"
+
+
+class TestSyncIndicators:
+    def test_chip_busy_then_fresh(
+        self, window: MainWindow, qtbot: QtBot, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from pipeforge.services import matlab_bridge
+
+        monkeypatch.setattr(matlab_bridge, "snapshot_auto", lambda *a, **kw: demo_snapshot())
+        assert not window.matlab_chip.isVisible()
+        with qtbot.waitSignal(window.workspace.refreshFinished, timeout=4000):
+            window.workspace.refresh_from_matlab()
+            assert "⟳" in window.matlab_chip.text()  # busy state immediately
+            assert window.matlab_chip.objectName() == "chipBusy"
+        qtbot.waitUntil(lambda: "✓" in window.matlab_chip.text(), timeout=2000)
+        assert "3 vars" in window.matlab_chip.text()
+        assert window.matlab_chip.objectName() == "chip"
+        assert "MATLAB snapshot updated" in window.toast.text()
+
+    def test_refresh_button_disabled_in_flight(
+        self, window: MainWindow, qtbot: QtBot, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        import time as time_mod
+
+        from pipeforge.gui.views.matlab_view import MatlabView
+        from pipeforge.services import matlab_bridge
+
+        def slow(*_a: object, **_kw: object) -> WorkspaceSnapshot:
+            time_mod.sleep(0.3)
+            return demo_snapshot()
+
+        monkeypatch.setattr(matlab_bridge, "snapshot_auto", slow)
+        view = window.views["golden"]
+        assert isinstance(view, MatlabView)
+        with qtbot.waitSignal(window.workspace.refreshFinished, timeout=4000):
+            window.workspace.refresh_from_matlab()
+            assert not view.refresh_btn.isEnabled()
+            assert view.refresh_btn.text() == "Refreshing…"
+        qtbot.waitUntil(lambda: view.refresh_btn.isEnabled(), timeout=2000)
+
+    def test_file_change_marks_stale_without_autosync(
+        self, window: MainWindow, qtbot: QtBot, tmp_path: Path
+    ) -> None:
+        window.workspace.snapshot = demo_snapshot()
+        window.workspace.snapshotChanged.emit(window.workspace.snapshot)
+        assert window.workspace.m_path is not None
+        with qtbot.waitSignal(window.workspace.snapshotStale, timeout=4000):
+            window.workspace.m_path.write_text("y = cfg.gain * x + offset + 1;\n", encoding="utf-8")
+        assert window.workspace.stale
+        qtbot.waitUntil(lambda: "stale" in window.matlab_chip.text(), timeout=2000)
+        assert window.matlab_chip.objectName() == "chipWarn"
+
+    def test_file_change_autorefreshes_when_warm(
+        self, window: MainWindow, qtbot: QtBot, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from pipeforge.services import matlab_bridge, matlab_session
+
+        monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "cfg"))
+        cfg = matlab_bridge.MatlabConfig(command=["sh"], warm=True, auto_refresh=True)
+        cfg.save()
+        monkeypatch.setattr(matlab_session, "server_alive", lambda: True)
+        monkeypatch.setattr(matlab_bridge, "snapshot_auto", lambda *a, **kw: demo_snapshot())
+        window.workspace.snapshot = demo_snapshot()
+        assert window.workspace.m_path is not None
+        with qtbot.waitSignal(window.workspace.refreshFinished, timeout=4000):
+            window.workspace.m_path.write_text("y = cfg.gain * x + offset + 2;\n", encoding="utf-8")
+        assert not window.workspace.stale  # auto-refresh replaced, not staled
+
+    def test_settings_warm_toggles_persist_and_gate(
+        self, window: MainWindow, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+        from pipeforge.gui.views.settings_view import SettingsView
+        from pipeforge.services.matlab_bridge import MatlabConfig
+
+        view = window.views["settings"]
+        assert isinstance(view, SettingsView)
+        monkeypatch.setattr(window.workspace, "start_warm_session", lambda: None)
+        monkeypatch.setattr(window.workspace, "stop_warm_session", lambda: None)
+        assert not view.autosync_check.isEnabled()  # gated until warm
+        view.warm_check.setChecked(True)
+        assert view.autosync_check.isEnabled()
+        view.autosync_check.setChecked(True)
+        cfg = MatlabConfig.load()
+        assert cfg.warm and cfg.auto_refresh
+        view.warm_check.setChecked(False)
+        cfg = MatlabConfig.load()
+        assert not cfg.warm and not cfg.auto_refresh  # autosync forced off too

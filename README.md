@@ -490,6 +490,22 @@ elements; min/max always cover the full array). Struct fields come back dotted
 (`cfg.filter.taps`). Snapshots are **cached** and only retaken on explicit refresh
 (`--force`, the Detect…/Refresh actions) because MATLAB takes seconds to start.
 
+**Refresh feedback and staleness.** The status bar shows a MATLAB chip:
+`MATLAB ⟳ 12s` (accent-colored) while a refresh runs, `MATLAB ✓ 14:03 · 11 vars`
+when current, and `MATLAB ⚠ stale` (warning-colored) the moment a watched file —
+the open `.m`/`.mat` or the configured setup — changes after the snapshot. Click
+the chip to refresh; a toast confirms completion ("11 variables in 0.4 s").
+
+**Keep MATLAB warm (full sync).** Settings → "Keep MATLAB warm" starts one
+background MATLAB session (file-based RPC through the shared config dir — works
+through the container; holds a license seat while running). The cold start is
+paid once — measured here: ~4 s cold, then **~0.1 s per snapshot**. With the
+session warm, enable "Auto-refresh when files change" and snapshots retake
+themselves whenever you save the `.m`/`.mat` — true syncing; without it, changes
+just flip the chip to stale. A live server also accelerates
+`pipeforge-cli matlab snapshot/validate` automatically; if the session dies,
+everything falls back to batch mode in the same call.
+
 **Inspecting a `.mat` parameter file alone** — no script needed:
 
 ```sh

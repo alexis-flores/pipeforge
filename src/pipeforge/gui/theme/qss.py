@@ -79,6 +79,16 @@ QLabel#chip {{
     background: {t["surfaceElevated"]}; border: 1px solid {t["border"]};
     border-radius: 9px; padding: 2px 10px; font-size: {FONT_SMALL}px;
 }}
+QLabel#chipBusy {{
+    background: {t["surfaceElevated"]}; border: 1px solid {t["accent"]};
+    color: {t["accent"]};
+    border-radius: 9px; padding: 2px 10px; font-size: {FONT_SMALL}px;
+}}
+QLabel#chipWarn {{
+    background: {t["surfaceElevated"]}; border: 1px solid {t["warning"]};
+    color: {t["warning"]};
+    border-radius: 9px; padding: 2px 10px; font-size: {FONT_SMALL}px;
+}}
 QSplitter::handle {{ background: {t["border"]}; width: 1px; height: 1px; }}
 QScrollBar:vertical {{ background: transparent; width: 10px; }}
 QScrollBar::handle:vertical {{

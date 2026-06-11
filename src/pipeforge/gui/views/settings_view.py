@@ -83,6 +83,18 @@ class SettingsView(QWidget):
         form.addRow("MATLAB command", command_row)
         form.addRow("MATLAB setup", setup_row)
 
+        from PyQt6.QtWidgets import QCheckBox
+
+        self.warm_check = QCheckBox("Keep MATLAB warm (background session — holds a license)")
+        self.warm_check.setChecked(matlab_cfg.warm)
+        self.warm_check.toggled.connect(self._on_warm_toggled)
+        self.autosync_check = QCheckBox("Auto-refresh when files change (needs warm session)")
+        self.autosync_check.setChecked(matlab_cfg.auto_refresh)
+        self.autosync_check.setEnabled(matlab_cfg.warm)
+        self.autosync_check.toggled.connect(self._save_matlab_flags)
+        form.addRow("", self.warm_check)
+        form.addRow("", self.autosync_check)
+
         tools_title = QLabel("External tools")
         tools_title.setObjectName("sectionTitle")
         self.tools_label = QLabel()
@@ -139,6 +151,22 @@ class SettingsView(QWidget):
             return
         setup_text = self.matlab_setup_edit.text().strip()
         cfg = MatlabConfig(command=command, setup=Path(setup_text) if setup_text else None)
+        cfg.save()
+
+    def _on_warm_toggled(self, on: bool) -> None:
+        self.autosync_check.setEnabled(on)
+        if not on:
+            self.autosync_check.setChecked(False)
+        self._save_matlab_flags()
+        if on:
+            self._ws.start_warm_session()
+        else:
+            self._ws.stop_warm_session()
+
+    def _save_matlab_flags(self) -> None:
+        cfg = MatlabConfig.load()
+        cfg.warm = self.warm_check.isChecked()
+        cfg.auto_refresh = self.autosync_check.isChecked()
         cfg.save()
 
     def _detect_matlab(self) -> None:
