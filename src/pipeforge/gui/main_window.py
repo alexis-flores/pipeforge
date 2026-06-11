@@ -79,6 +79,8 @@ class MainWindow(QMainWindow):
 
         self.toast = Toast(self)
         self.workspace.problem.connect(self._on_problem)
+        self.workspace.logMessage.connect(self.log)
+        self.workspace.snapshotChanged.connect(lambda _s: self._on_selection(""))
         self.workspace.auditChanged.connect(self._on_audit)
         self.workspace.fileChanged.connect(self._on_file)
         self.workspace.formatChanged.connect(lambda _w, _s: self._update_chips())
@@ -225,11 +227,16 @@ class MainWindow(QMainWindow):
         palette_action.setShortcut(QKeySequence("Ctrl+K"))
         palette_action.triggered.connect(self.open_palette)
         self.addAction(palette_action)
+        matlab_refresh = QAction("Refresh from MATLAB", self)
+        matlab_refresh.setShortcut(QKeySequence("Ctrl+Shift+M"))
+        matlab_refresh.triggered.connect(self.workspace.refresh_from_matlab)
+        self.addAction(matlab_refresh)
 
     def palette_commands(self) -> list[tuple[str, object]]:
         commands: list[tuple[str, object]] = [
             ("Open file…", self._open_dialog),
             ("Re-run audit", self.workspace.rerun),
+            ("Refresh from MATLAB", self.workspace.refresh_from_matlab),
             (
                 "Toggle console",
                 lambda: self.console_dock.setVisible(not self.console_dock.isVisible()),
@@ -324,6 +331,19 @@ class MainWindow(QMainWindow):
         ]
         if related:
             parts.append("findings: " + ", ".join(related))
+        snapshot = self.workspace.snapshot
+        if snapshot is not None:
+            info = snapshot.get(node.signal) or snapshot.get(node.label)
+            if info is not None:
+                size = "x".join(str(d) for d in info.size)
+                live = [f"MATLAB: {info.class_name} {size}"]
+                if info.fi is not None:
+                    live.append(f"fi {info.fi.width}/{info.fi.scale}")
+                if info.values:
+                    preview = ", ".join(f"{v:.6g}" for v in info.values[:4])
+                    more = "…" if len(info.values) > 4 or info.truncated else ""
+                    live.append(f"= [{preview}{more}]")
+                parts.append("<i>" + " — ".join(live) + "</i>")
         self.inspector_label.setText("<br>".join(parts))
         if node.span is not None:
             self.source_view.highlight_span(node.span.start, node.span.end)

@@ -23,6 +23,26 @@ The **pipeline timeline** is the signature element: a horizontal cycle ruler whe
 every signal is a bar from its inputs-ready cycle to its output-ready cycle —
 critical path in red, dividers in orange.
 
+## Live MATLAB bridge
+
+PipeForge can query a **real MATLAB session** for variable types, shapes, fixed-point
+formats, and values — and the answers change the analysis:
+
+- `pipeforge-cli matlab snapshot dsp.m --setup data.mat` runs your setup (a `.m` to run
+  or a `.mat` to load) plus the script in MATLAB and captures every variable, including
+  nested struct fields (`cfg.gains.kp`) and the script's own outputs.
+- With a snapshot attached (`--snapshot` on `audit`/`ranges`, or **Ctrl+Shift+M** in the
+  GUI), `A * B` is costed as a true `matmul`, scalar×matrix becomes `matscale`,
+  fi-object format mismatches surface as **FORMAT** findings, input ranges come from
+  live min/max, and the inspector shows each node's MATLAB class/size/format/value.
+- `pipeforge-cli matlab validate dsp.m --setup data.mat` compares the bit-exact golden
+  model against MATLAB's own values, statement by statement (bit-clean / max-error / SQNR).
+
+MATLAB is located via a configurable command template (Settings → MATLAB command);
+the default targets a `matlab-sandbox` Distrobox container. Snapshots are taken only
+on explicit refresh (MATLAB startup is slow) and cached until you retake them.
+Struct-field access (`a.b.c`) is a documented grammar extension over the original SRS.
+
 ## Install
 
 ```sh

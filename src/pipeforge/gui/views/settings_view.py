@@ -2,10 +2,17 @@
 
 from __future__ import annotations
 
+import shlex
+from pathlib import Path
+
 from PyQt6.QtWidgets import (
     QComboBox,
+    QFileDialog,
     QFormLayout,
+    QHBoxLayout,
     QLabel,
+    QLineEdit,
+    QPushButton,
     QSpinBox,
     QVBoxLayout,
     QWidget,
@@ -13,6 +20,7 @@ from PyQt6.QtWidgets import (
 
 from pipeforge.gui.theme.manager import ThemeManager
 from pipeforge.gui.workspace import Workspace
+from pipeforge.services.matlab_bridge import MatlabConfig
 from pipeforge.services.tools import detect_tools
 
 
@@ -48,6 +56,21 @@ class SettingsView(QWidget):
         form.addRow("Theme", self.theme_combo)
         form.addRow("WIDTH (total bits)", self.width_spin)
         form.addRow("SCALE (fraction bits)", self.scale_spin)
+
+        # MATLAB bridge: command template + per-project workspace setup
+        matlab_cfg = MatlabConfig.load()
+        self.matlab_command_edit = QLineEdit(shlex.join(matlab_cfg.command))
+        self.matlab_command_edit.editingFinished.connect(self._save_matlab)
+        self.matlab_setup_edit = QLineEdit(str(matlab_cfg.setup) if matlab_cfg.setup else "")
+        self.matlab_setup_edit.setPlaceholderText("setup .m to run or .mat to load (optional)")
+        self.matlab_setup_edit.editingFinished.connect(self._save_matlab)
+        browse = QPushButton("Browse…")
+        browse.clicked.connect(self._browse_setup)
+        setup_row = QHBoxLayout()
+        setup_row.addWidget(self.matlab_setup_edit, 1)
+        setup_row.addWidget(browse)
+        form.addRow("MATLAB command", self.matlab_command_edit)
+        form.addRow("MATLAB setup", setup_row)
 
         tools_title = QLabel("External tools")
         tools_title.setObjectName("sectionTitle")
@@ -93,6 +116,27 @@ class SettingsView(QWidget):
         self.scale_spin.setValue(scale)
         self.width_spin.blockSignals(False)
         self.scale_spin.blockSignals(False)
+
+    def _save_matlab(self) -> None:
+        try:
+            command = shlex.split(self.matlab_command_edit.text())
+        except ValueError:
+            self._ws.problem.emit("MATLAB command has unbalanced quotes; not saved.")
+            return
+        if not command:
+            self._ws.problem.emit("MATLAB command cannot be empty; not saved.")
+            return
+        setup_text = self.matlab_setup_edit.text().strip()
+        cfg = MatlabConfig(command=command, setup=Path(setup_text) if setup_text else None)
+        cfg.save()
+
+    def _browse_setup(self) -> None:
+        fname, _ = QFileDialog.getOpenFileName(
+            self, "Workspace setup", "", "MATLAB setup (*.m *.mat)"
+        )
+        if fname:
+            self.matlab_setup_edit.setText(fname)
+            self._save_matlab()
 
     def refresh_tools(self) -> None:
         lines = []

@@ -1,0 +1,126 @@
+"""MATLAB bridge GUI tests (M5): refresh flow, inspector live info, settings."""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+import pytest
+
+pytest.importorskip("pytestqt")
+from PyQt6.QtWidgets import QApplication
+from pytestqt.qtbot import QtBot
+
+from pipeforge.core.frontend.varinfo import FiFormat, VarInfo, WorkspaceSnapshot
+from pipeforge.gui.main_window import MainWindow
+from pipeforge.gui.theme.manager import ThemeManager
+from pipeforge.gui.workspace import Workspace
+
+FIXTURES = Path(__file__).parent.parent / "fixtures"
+
+
+def demo_snapshot() -> WorkspaceSnapshot:
+    s = WorkspaceSnapshot(matlab_version="test", timestamp="2026-06-11 00:00:00")
+    s.variables["cfg.gain"] = VarInfo(
+        name="cfg.gain", class_name="double", size=(1, 1), values=(0.5,), vmin=0.5, vmax=0.5
+    )
+    s.variables["x"] = VarInfo(
+        name="x",
+        class_name="double",
+        size=(1, 3),
+        values=(0.25, -0.5, 0.125),
+        vmin=-0.5,
+        vmax=0.25,
+    )
+    s.variables["offset"] = VarInfo(
+        name="offset",
+        class_name="embedded.fi",
+        size=(1, 1),
+        fi=FiFormat(18, 14),
+        values=(0.0625,),
+        vmin=0.0625,
+        vmax=0.0625,
+    )
+    return s
+
+
+@pytest.fixture
+def window(qtbot: QtBot, tmp_path: Path) -> MainWindow:
+    app = QApplication.instance()
+    assert isinstance(app, QApplication)
+    win = MainWindow(Workspace(), ThemeManager(app))
+    qtbot.addWidget(win)
+    win.show()
+    script = tmp_path / "demo_gui.m"
+    script.write_text("y = cfg.gain * x + offset;\n", encoding="utf-8")
+    win.open_path(script)
+    return win
+
+
+def test_refresh_reaudits_with_snapshot(
+    window: MainWindow, qtbot: QtBot, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from pipeforge.services import matlab_bridge
+
+    monkeypatch.setattr(matlab_bridge, "take_snapshot", lambda *a, **kw: demo_snapshot())
+    with qtbot.waitSignal(window.workspace.auditChanged, timeout=4000):
+        window.workspace.refresh_from_matlab()
+    assert window.workspace.snapshot is not None
+    audit = window.workspace.audit
+    assert audit is not None
+    # the fi mismatch surfaced as a FORMAT finding through the GUI path
+    assert any(f.tag == "FORMAT" for f in audit.findings)
+    assert "snapshot of 3 variables" in window.console.toPlainText()
+
+
+def test_inspector_shows_live_matlab_info(window: MainWindow, qtbot: QtBot) -> None:
+    window.workspace.snapshot = demo_snapshot()
+    window.workspace.rerun()
+    audit = window.workspace.audit
+    assert audit is not None
+    x_node = next(n for n in audit.dag.inputs() if n.label == "x")
+    window.workspace.select_node(x_node.nid)
+    text = window.inspector_label.text()
+    assert "MATLAB: double 1x3" in text
+    assert "0.25" in text  # value preview
+    offset_node = next(n for n in audit.dag.inputs() if n.label == "offset")
+    window.workspace.select_node(offset_node.nid)
+    assert "fi 18/14" in window.inspector_label.text()
+
+
+def test_refresh_failure_is_a_toast(
+    window: MainWindow, qtbot: QtBot, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from pipeforge.services import matlab_bridge
+
+    def boom(*_a: object, **_kw: object) -> WorkspaceSnapshot:
+        raise matlab_bridge.MatlabUnavailable("container down — start matlab-sandbox")
+
+    monkeypatch.setattr(matlab_bridge, "take_snapshot", boom)
+    with qtbot.waitSignal(window.workspace.problem, timeout=4000):
+        window.workspace.refresh_from_matlab()
+    assert "container down" in window.toast.text()
+
+
+def test_opening_other_file_clears_snapshot(window: MainWindow, tmp_path: Path) -> None:
+    window.workspace.snapshot = demo_snapshot()
+    other = tmp_path / "other.m"
+    other.write_text("z = a + b;\n", encoding="utf-8")
+    window.open_path(other)
+    assert window.workspace.snapshot is None
+
+
+def test_settings_matlab_round_trip(
+    window: MainWindow, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    from pipeforge.gui.views.settings_view import SettingsView
+    from pipeforge.services.matlab_bridge import MatlabConfig
+
+    view = window.views["settings"]
+    assert isinstance(view, SettingsView)
+    view.matlab_command_edit.setText("docker exec matlab matlab")
+    view.matlab_setup_edit.setText(str(tmp_path / "setup.mat"))
+    view._save_matlab()
+    cfg = MatlabConfig.load()
+    assert cfg.command == ["docker", "exec", "matlab", "matlab"]
+    assert cfg.setup == tmp_path / "setup.mat"

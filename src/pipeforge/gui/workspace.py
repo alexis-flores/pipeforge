@@ -1,18 +1,52 @@
 """Global file/project context (UI-2).
 
 One workspace per window: the loaded `.m` (and optional `.sv`), the
-WIDTH/SCALE format, and the audit derived from them. Every view reacts to
-its signals; selection is shared so views stay synchronized (VZ-2).
+WIDTH/SCALE format, the optional live MATLAB snapshot, and the audit derived
+from them. Every view reacts to its signals; selection is shared so views
+stay synchronized (VZ-2).
 """
 
 from __future__ import annotations
 
 from pathlib import Path
 
-from PyQt6.QtCore import QObject, pyqtSignal
+from PyQt6.QtCore import QObject, QRunnable, QThreadPool, pyqtSignal
 
 from pipeforge.core.audit.engine import Audit, audit_source
 from pipeforge.core.costmodel.model import CostModel
+from pipeforge.core.frontend.varinfo import WorkspaceSnapshot
+
+
+class _SnapshotSignals(QObject):
+    finished = pyqtSignal(object)  # WorkspaceSnapshot
+    failed = pyqtSignal(str)
+    logged = pyqtSignal(str)
+
+
+class _SnapshotJob(QRunnable):
+    """Runs the MATLAB bridge off the GUI thread (UI-3); MATLAB is slow."""
+
+    def __init__(self, script: Path, setup: Path | None) -> None:
+        super().__init__()
+        self.script = script
+        self.setup = setup
+        self.signals = _SnapshotSignals()
+
+    def run(self) -> None:
+        from pipeforge.services.matlab_bridge import MatlabUnavailable, take_snapshot
+
+        try:
+            snapshot = take_snapshot(
+                self.script,
+                setup=self.setup,
+                force=True,  # the GUI refresh is the explicit retake
+                log=self.signals.logged.emit,
+            )
+            self.signals.finished.emit(snapshot)
+        except MatlabUnavailable as exc:
+            self.signals.failed.emit(str(exc))
+        except Exception as exc:
+            self.signals.failed.emit(f"MATLAB refresh failed: {exc}")
 
 
 class Workspace(QObject):
@@ -20,6 +54,8 @@ class Workspace(QObject):
     fileChanged = pyqtSignal(str)  # path ('' when cleared)
     formatChanged = pyqtSignal(int, int)  # width, scale
     selectionChanged = pyqtSignal(str)  # DAG node id ('' = cleared)
+    snapshotChanged = pyqtSignal(object)  # WorkspaceSnapshot | None
+    logMessage = pyqtSignal(str)  # console lines (MATLAB output etc.)
     problem = pyqtSignal(str)  # user-facing, non-fatal (NF-4 toast)
 
     def __init__(self) -> None:
@@ -31,6 +67,8 @@ class Workspace(QObject):
         self.source = ""
         self.audit: Audit | None = None
         self.selected_node = ""
+        self.snapshot: WorkspaceSnapshot | None = None
+        self._refreshing = False
 
     @property
     def cost_model(self) -> CostModel:
@@ -49,6 +87,9 @@ class Workspace(QObject):
         except OSError as exc:
             self.problem.emit(f"Cannot open {path.name}: {exc.strerror or exc}")
             return
+        if self.m_path is not None and path != self.m_path:
+            self.snapshot = None  # a different script: stale workspace data
+            self.snapshotChanged.emit(None)
         self.m_path = path
         self.source = text
         sv = path.with_suffix(".sv")
@@ -79,11 +120,49 @@ class Workspace(QObject):
         if self.m_path is None:
             return
         try:
-            self.audit = audit_source(self.source, self.m_path.name, self.cost_model)
+            self.audit = audit_source(
+                self.source, self.m_path.name, self.cost_model, snapshot=self.snapshot
+            )
         except Exception as exc:
             self.audit = None
             self.problem.emit(f"Audit failed: {exc}")
         self.auditChanged.emit(self.audit)
+
+    # -- MATLAB bridge (manual refresh only; MATLAB start is slow) ----------
+
+    def refresh_from_matlab(self) -> None:
+        """Snapshot the live MATLAB workspace, then re-audit with it."""
+        if self.m_path is None:
+            self.problem.emit("Open a MATLAB file first, then refresh from MATLAB.")
+            return
+        if self._refreshing:
+            self.problem.emit("A MATLAB refresh is already running.")
+            return
+        from pipeforge.services.matlab_bridge import MatlabConfig
+
+        self._refreshing = True
+        self.logMessage.emit("matlab: refreshing workspace snapshot…")
+        job = _SnapshotJob(self.m_path, MatlabConfig.load().setup)
+        job.signals.logged.connect(self.logMessage.emit)
+        job.signals.finished.connect(self._on_snapshot)
+        job.signals.failed.connect(self._on_snapshot_failed)
+        QThreadPool.globalInstance().start(job)
+
+    def _on_snapshot(self, snapshot: object) -> None:
+        self._refreshing = False
+        if isinstance(snapshot, WorkspaceSnapshot):
+            self.snapshot = snapshot
+            if snapshot.error:
+                self.problem.emit(f"MATLAB ran with an error (partial snapshot): {snapshot.error}")
+            self.snapshotChanged.emit(snapshot)
+            self.logMessage.emit(
+                f"matlab: snapshot of {len(snapshot.variables)} variables ({snapshot.timestamp})"
+            )
+            self._reaudit()
+
+    def _on_snapshot_failed(self, message: str) -> None:
+        self._refreshing = False
+        self.problem.emit(message)
 
     # -- selection (VZ-2) ----------------------------------------------------
 
