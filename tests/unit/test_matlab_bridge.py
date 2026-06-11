@@ -233,3 +233,24 @@ def test_live_snapshot_round_trip(tmp_path: Path, monkeypatch: pytest.MonkeyPatc
     assert a is not None and a.is_matrix and a.shape2d == (2, 2)
     # outputs of the DSP script itself are captured too
     assert "y" in snap and "n" in snap
+
+
+@pytest.mark.tool("matlab")
+@requires_matlab
+def test_live_validate_against_matlab(monkeypatch: pytest.MonkeyPatch) -> None:
+    from pipeforge.core.audit.engine import audit_source
+    from pipeforge.core.costmodel.model import CostModel
+    from pipeforge.core.fxp.fx import FxFormat
+    from pipeforge.core.fxp.validate import compare_to_matlab
+
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(Path.home() / ".config"))
+    snap = mb.take_snapshot(FIXTURES / "demo.m", setup=FIXTURES / "setup_demo.m")
+    src = (FIXTURES / "demo.m").read_text(encoding="utf-8")
+    audit = audit_source(src, "demo.m", CostModel(16, 12), snapshot=snap)
+    report = compare_to_matlab(audit.dag, snap, FxFormat(16, 12))
+    targets = {c.target: c for c in report.checks}
+    assert set(targets) == {"y", "n"}
+    # y = cfg.gain * x + offset: every operand is exactly representable at S=12
+    assert targets["y"].stats.max_abs_error == 0.0
+    # n = norm(x): quantized sqrt stays within a couple of LSBs of MATLAB
+    assert 0.0 < targets["n"].stats.max_abs_error < 2.0**-11

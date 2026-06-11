@@ -262,3 +262,21 @@ def recommend_format(
         validated_sqnr_db=worst if math.isfinite(worst) else math.inf,
         meets_budget=meets,
     )
+
+
+def ranges_from_snapshot(dag: Dag, snapshot: object) -> dict[str, Interval]:
+    """Empirical input ranges from live MATLAB min/max (MATLAB bridge M4).
+
+    Only inputs present in the snapshot are returned; declared ranges can
+    still override or fill the gaps.
+    """
+    from pipeforge.core.frontend.varinfo import WorkspaceSnapshot
+
+    if not isinstance(snapshot, WorkspaceSnapshot):
+        return {}
+    out: dict[str, Interval] = {}
+    for node in dag.inputs():
+        info = snapshot.get(node.label)
+        if info is not None and info.vmin is not None and info.vmax is not None:
+            out[node.label] = Interval(info.vmin, info.vmax)
+    return out

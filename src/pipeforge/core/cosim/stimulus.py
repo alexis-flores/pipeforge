@@ -50,3 +50,39 @@ def generate_stimulus(
     while len(vectors) < count:
         vectors.append({name: rng.randrange(0, 1 << fmt.width) for name in inputs})
     return vectors[:count]
+
+
+def generate_stimulus_with_samples(
+    inputs: list[str],
+    fmt: FxFormat,
+    samples: dict[str, list[float]],
+    count: int = 256,
+    seed: int = 2024,
+) -> list[Vector]:
+    """Corners first, then real workspace samples lane-by-lane, then random.
+
+    `samples` carries float values per input (e.g. from a MATLAB snapshot);
+    shorter streams repeat cyclically so every lane stays populated.
+    """
+    from pipeforge.core.fxp.fx import from_float
+
+    vectors = generate_stimulus(inputs, fmt, count=count, seed=seed)
+    streams = {name: vals for name, vals in samples.items() if vals}
+    if not streams:
+        return vectors
+    lanes = max(len(v) for v in streams.values())
+    corner_count = sum(1 for _ in corner_values(fmt)) + 1  # keep the corner block
+    real: list[Vector] = []
+    for i in range(min(lanes, max(count - corner_count, 0))):
+        vec: Vector = {}
+        for name in inputs:
+            vals = streams.get(name)
+            if vals:
+                vec[name] = from_float(vals[i % len(vals)], fmt)
+            else:
+                vec[name] = vectors[(corner_count + i) % count][name]
+        real.append(vec)
+    merged = vectors[:corner_count] + real
+    fill_from = len(merged)
+    merged.extend(vectors[fill_from:count])
+    return merged[:count]

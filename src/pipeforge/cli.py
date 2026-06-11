@@ -185,9 +185,16 @@ def _cmd_ranges(args: argparse.Namespace) -> int:
         print(f"error: {exc}", file=sys.stderr)
         return 2
     cm = CostModel(args.width, args.scale)
-    audit = audit_source(src, path.name, cm)
+    snapshot = _load_snapshot_arg(getattr(args, "snapshot", None))
+    audit = audit_source(src, path.name, cm, snapshot=snapshot)
     declared = _parse_ranges(args.range or [])
     ranges = {k: Interval(lo, hi) for k, (lo, hi) in declared.items()}
+    if snapshot is not None:
+        from pipeforge.core.ranges.propagate import ranges_from_snapshot
+
+        # empirical workspace ranges fill anything not explicitly declared
+        for name, iv in ranges_from_snapshot(audit.dag, snapshot).items():
+            ranges.setdefault(name, iv)
     try:
         report = propagate(audit.dag, ranges, cm, method=args.method)
     except RangeError as exc:
@@ -295,6 +302,52 @@ def _cmd_matlab(args: argparse.Namespace) -> int:
     )
 
     config = MatlabConfig.load()
+    if args.matlab_action == "validate":
+        from pipeforge.core.audit.engine import audit_source
+        from pipeforge.core.costmodel.model import CostModel
+        from pipeforge.core.fxp.fx import FxFormat
+        from pipeforge.core.fxp.validate import ValidateError, compare_to_matlab
+
+        m_path = Path(args.file)
+        try:
+            src = m_path.read_text(encoding="utf-8")
+        except OSError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 2
+        try:
+            snapshot = take_snapshot(
+                m_path,
+                setup=Path(args.setup) if args.setup else None,
+                config=config,
+                force=args.force,
+                log=lambda line: print(line, file=sys.stderr),
+            )
+        except MatlabUnavailable as exc:
+            print(str(exc), file=sys.stderr)
+            return 3
+        cm = CostModel(args.width, args.scale)
+        audit = audit_source(src, m_path.name, cm, snapshot=snapshot)
+        from pipeforge.core.fxp.evaluator import EvalError
+
+        try:
+            report = compare_to_matlab(audit.dag, snapshot, FxFormat(args.width, args.scale))
+        except (ValidateError, EvalError) as exc:
+            print(f"cannot validate: {exc}", file=sys.stderr)
+            return 1
+        print(
+            f"validate {m_path.name} @ {args.width}/{args.scale} — golden model vs "
+            f"MATLAB {snapshot.matlab_version}"
+        )
+        for c in report.checks:
+            exact = c.stats.max_abs_error == 0.0
+            verdict = "bit-clean" if exact else f"max|e| {c.stats.max_abs_error:.3g}"
+            sqnr = f", SQNR {c.stats.sqnr_db:.1f} dB" if not exact else ""
+            print(f"  line {c.line:>3}  {c.target:<14} {c.compared} value(s): {verdict}{sqnr}")
+        for name in report.uncheckable:
+            print(f"  {name}: no MATLAB value to compare against")
+        print(f"worst: max|e| {report.worst_abs_error:.3g}, SQNR {report.worst_sqnr_db:.1f} dB")
+        return 0
+
     if args.matlab_action == "probe":
         try:
             version = probe(config)
@@ -434,6 +487,11 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="BUDGET",
         help="also recommend WIDTH/SCALE for this absolute error budget",
     )
+    p_ranges.add_argument(
+        "--snapshot",
+        metavar="JSON",
+        help="MATLAB workspace snapshot: derive input ranges from live min/max",
+    )
     _add_fixedp_args(p_ranges)
     p_ranges.add_argument("--json", action="store_true", help="emit JSON instead of text")
     p_ranges.set_defaults(func=_cmd_ranges)
@@ -461,6 +519,15 @@ def build_parser() -> argparse.ArgumentParser:
     p_snap.add_argument(
         "--force", action="store_true", help="retake even if a cached snapshot exists"
     )
+    p_val = matlab_sub.add_parser(
+        "validate",
+        help="compare the fixed-point golden model against MATLAB's live values, "
+        "statement by statement",
+    )
+    p_val.add_argument("file", help="MATLAB script (.m)")
+    p_val.add_argument("--setup", help="workspace setup: a .m to run or a .mat to load")
+    p_val.add_argument("--force", action="store_true", help="retake the snapshot")
+    _add_fixedp_args(p_val)
     p_matlab.set_defaults(func=_cmd_matlab)
 
     return parser

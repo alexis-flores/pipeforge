@@ -107,13 +107,13 @@ def apply_fixed(node: Node, args: list[FixedVec], fmt: FxFormat) -> FixedVec:
         n = _broadcast(a, b)
         fn = ops.smax if mod == "elem_smax" else ops.smin
         return [fn(_elem(a, i), _elem(b, i), fmt) for i in range(n)]
-    if mod == "elem_smul":
+    if mod in ("elem_smul", "matscale"):
         a, b = args
         n = _broadcast(a, b)
         return [ops.smul(_elem(a, i), _elem(b, i), fmt) for i in range(n)]
     if mod == "elem_ssqr":
         return [ops.ssqr(x, fmt) for x in args[0]]
-    if mod == "elem_sdiv":
+    if mod in ("elem_sdiv", "matunscale"):
         a, b = args
         n = _broadcast(a, b)
         return [ops.sdiv(_elem(a, i), _elem(b, i), fmt) for i in range(n)]
@@ -193,13 +193,13 @@ def _eval_float_node(
         n = _broadcast(a, b)
         fn = max if mod == "elem_smax" else min
         return [fn(_felem(a, i), _felem(b, i)) for i in range(n)]
-    if mod == "elem_smul":
+    if mod in ("elem_smul", "matscale"):
         a, b = args
         n = _broadcast(a, b)
         return [_felem(a, i) * _felem(b, i) for i in range(n)]
     if mod == "elem_ssqr":
         return [x * x for x in args[0]]
-    if mod == "elem_sdiv":
+    if mod in ("elem_sdiv", "matunscale"):
         a, b = args
         n = _broadcast(a, b)
         return [_felem(a, i) / _felem(b, i) if _felem(b, i) != 0.0 else math.inf for i in range(n)]
