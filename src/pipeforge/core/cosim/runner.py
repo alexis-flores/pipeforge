@@ -169,7 +169,7 @@ runner.build(
     verilog_sources={sources!r},
     includes={includes!r},
     hdl_toplevel="tb_wrapper",
-    build_args=["-Wno-fatal", "--timing"],
+    build_args=["-Wno-fatal"],
 )
 runner.test(hdl_toplevel="tb_wrapper", test_module="tb_cosim")
 """,
