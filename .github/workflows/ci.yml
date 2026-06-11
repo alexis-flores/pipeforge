@@ -45,7 +45,7 @@ jobs:
       # Build the release verified bit-exact locally (5.048) once, then cache it.
       - name: Cache Verilator
         id: cache-verilator
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/verilator
           key: verilator-v5.048-ubuntu-22.04
