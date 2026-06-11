@@ -13,7 +13,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from pipeforge.core.audit.engine import Audit
-from pipeforge.core.frontend.dag import Dag, Node
+from pipeforge.core.frontend.dag import Dag, Node, port_name
 
 #: DAG module -> (instance port for each arg position, output port)
 _PORTS_2IN = (("a", "b"), "f")
@@ -115,8 +115,9 @@ class _Emitter:
         if not outputs:
             raise CodegenError("the DAG has no outputs; nothing to generate")
         for node in inputs:
-            self.sig[node.nid] = _Sig(node.label, 0)
-            self.used_names.add(f"{node.label}_0")
+            safe = port_name(node.label)
+            self.sig[node.nid] = _Sig(safe, 0)
+            self.used_names.add(f"{safe}_0")
 
         for nid in dag.order:
             node = dag.nodes[nid]
@@ -151,7 +152,7 @@ class _Emitter:
         for name, sig in out_sigs:
             assigns.append(f"assign {name}_N = {sig.full};")
 
-        in_ports = "\n".join(f"  input [g.WIDTH-1:0] {n.label}_0," for n in inputs)
+        in_ports = "\n".join(f"  input [g.WIDTH-1:0] {port_name(n.label)}_0," for n in inputs)
         out_ports = ",\n".join(f"  output [g.WIDTH-1:0] {n.signal}_N" for n in outputs)
         decls = "\n".join(self.decls)
         body = "\n".join(self.body)

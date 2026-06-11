@@ -15,6 +15,7 @@ from pipeforge.core.frontend.ast import (
     Call,
     ColonAtom,
     Expr,
+    Field,
     Index,
     Mat,
     Num,
@@ -28,6 +29,11 @@ from pipeforge.core.frontend.ast import (
 )
 from pipeforge.core.frontend.lexer import MatlabSyntaxError
 from pipeforge.core.frontend.parser import Assign, Skipped
+
+
+def port_name(label: str) -> str:
+    """RTL-safe port name for a (possibly dotted) input label: cfg.gain -> cfg_gain."""
+    return label.replace(".", "_")
 
 
 @dataclass
@@ -145,6 +151,15 @@ class DagBuilder:
             if e.name in self.env:
                 return self.dag.nodes[self.env[e.name]]
             return self.leaf("input", e.name, e.span)
+        if isinstance(e, Field):
+            dotted = e.dotted
+            if dotted in self.env:
+                return self.dag.nodes[self.env[dotted]]
+            if e.base in self.env:
+                # field of a struct defined earlier: wiring off its def node
+                base = self.dag.nodes[self.env[e.base]]
+                return self.op_node("", "field", [base], dotted, e.span)
+            return self.leaf("input", dotted, e.span)
         if isinstance(e, ColonAtom):
             return self.leaf("const", ":", e.span)
         if isinstance(e, Str):

@@ -14,6 +14,7 @@ from pipeforge.core.frontend.ast import (
     Bin,
     ColonAtom,
     Expr,
+    Field,
     Index,
     Mat,
     Num,
@@ -152,14 +153,24 @@ class ExprParser:
             raise MatlabSyntaxError("string literals are not supported", t.line)
         if t.kind == "ID":
             self.next()
+            # struct-field chain: a.b.c (grammar extension; see docs)
+            path: list[str] = []
+            last = t
+            while self.at_op(".") and self.toks[self.pos + 1].kind == "ID":
+                self.next()
+                last = self.next()
+                path.append(last.text)
             if self.at_op("("):
                 self.next()
                 args = self.parse_args()
                 close = self.expect(")")
                 span = self._span(t, close)
-                if t.text in self.known_funcs:
+                if not path and t.text in self.known_funcs:
                     return CallNode(t.text, tuple(args), span)
-                return Index(t.text, tuple(args), span)
+                dotted = ".".join((t.text, *path))
+                return Index(dotted, tuple(args), span)
+            if path:
+                return Field(t.text, tuple(path), self._span(t, last))
             return Var(t.text, Span(t.pos, t.pos + len(t.text), t.line))
         if t.kind == "OP" and t.text == "(":
             self.next()

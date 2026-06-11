@@ -96,6 +96,12 @@ def tokenize(text: str) -> list[Tok]:
             i += 2
             col += 2
             continue
+        if ch == "." and i + 1 < n and (text[i + 1].isalpha() or text[i + 1] == "_"):
+            # struct-field access: a.b (dotted operators were handled above)
+            toks.append(Tok("OP", ".", line, col, i))
+            i += 1
+            col += 1
+            continue
         if ch == "'":
             prev = prev_significant()
             if prev is not None and (

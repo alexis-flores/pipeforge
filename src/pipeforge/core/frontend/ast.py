@@ -38,6 +38,24 @@ class Str:
 
 
 @dataclass(frozen=True)
+class Field:
+    """Struct-field access, e.g. ``cfg.gains.kp`` (grammar extension).
+
+    ``base`` is the root variable; ``path`` the field chain. The dotted
+    name is the canonical/lookup key; a live MATLAB snapshot can resolve
+    its type and value.
+    """
+
+    base: str
+    path: tuple[str, ...]
+    span: Span
+
+    @property
+    def dotted(self) -> str:
+        return ".".join((self.base, *self.path))
+
+
+@dataclass(frozen=True)
 class Index:
     """Array-index atom, e.g. ``n(:,1)`` — treated as an opaque operand."""
 
@@ -80,7 +98,7 @@ class Mat:
     span: Span
 
 
-Expr = Num | Var | ColonAtom | Str | Index | Call | Bin | Un | Trans | Mat
+Expr = Num | Var | ColonAtom | Str | Field | Index | Call | Bin | Un | Trans | Mat
 
 
 def canon(e: Expr) -> str:
@@ -90,6 +108,8 @@ def canon(e: Expr) -> str:
         return str(int(v)) if v == int(v) else repr(v)
     if isinstance(e, Var):
         return e.name
+    if isinstance(e, Field):
+        return e.dotted
     if isinstance(e, ColonAtom):
         return ":"
     if isinstance(e, Str):
@@ -112,8 +132,10 @@ def expr_vars(e: Expr) -> set[str]:
     out: set[str] = set()
     if isinstance(e, Var):
         out.add(e.name)
+    elif isinstance(e, Field):
+        out.add(e.base)  # def-use tracks the root struct variable
     elif isinstance(e, Index):
-        out.add(e.name)
+        out.add(e.name.split(".")[0])  # dotted-indexed: root variable
         for a in e.args:
             out |= expr_vars(a)
     elif isinstance(e, Call):
