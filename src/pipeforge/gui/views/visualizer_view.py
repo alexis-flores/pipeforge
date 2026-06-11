@@ -39,10 +39,14 @@ class VisualizerView(QWidget):
         export_svg.clicked.connect(self._export_svg)
         export_png = QPushButton("Export PNG")
         export_png.clicked.connect(self._export_png)
+        self.slack_btn = QPushButton("Show slack")
+        self.slack_btn.setCheckable(True)
+        self.slack_btn.toggled.connect(self._toggle_slack)
 
         header = QHBoxLayout()
         header.addWidget(title)
         header.addStretch(1)
+        header.addWidget(self.slack_btn)
         header.addWidget(export_svg)
         header.addWidget(export_png)
 
@@ -80,6 +84,16 @@ class VisualizerView(QWidget):
         self._engine.setText(
             "Layout engine: " + ("graphviz dot" if dot_available() else "built-in layered")
         )
+
+    def _toggle_slack(self, on: bool) -> None:
+        """Per-node slack overlay on demand (VZ-1)."""
+        audit = self._ws.audit
+        if on and isinstance(audit, Audit):
+            from pipeforge.core.viz.layout import compute_slack
+
+            self.timeline.set_slack(compute_slack(audit.dag))
+        else:
+            self.timeline.set_slack({})
 
     def _palette(self) -> SvgPalette | None:
         if self._theme is None:

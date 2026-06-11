@@ -1,0 +1,201 @@
+requirement,test_id,status
+8.5d,tests/unit/test_architecture.py::test_cli_exposes_capabilities,passed
+AU-1,tests/unit/test_costmodel.py::test_latencies_match_nkmatlib_model[12-8],passed
+AU-1,tests/unit/test_costmodel.py::test_latencies_match_nkmatlib_model[16-12],passed
+AU-1,tests/unit/test_costmodel.py::test_latencies_match_nkmatlib_model[18-14],passed
+AU-1,tests/unit/test_costmodel.py::test_latencies_match_nkmatlib_model[20-12],passed
+AU-1,tests/unit/test_costmodel.py::test_latencies_match_nkmatlib_model[32-16],passed
+AU-1,tests/unit/test_costmodel.py::test_module_latency_table,passed
+AU-2,tests/unit/test_audit.py::TestSchedule::test_census_highlights_dividers,passed
+AU-2,tests/unit/test_audit.py::TestSchedule::test_parallel_chains_max,passed
+AU-2,tests/unit/test_audit.py::TestSchedule::test_ready_times_and_critical_path,passed
+AU-3,tests/unit/test_audit.py::TestFindings::test_cdiv_general_constant,passed
+AU-3,tests/unit/test_audit.py::TestFindings::test_cdiv_power_of_two,passed
+AU-3,tests/unit/test_audit.py::TestFindings::test_cse,passed
+AU-3,tests/unit/test_audit.py::TestFindings::test_feedback,passed
+AU-3,tests/unit/test_audit.py::TestFindings::test_findings_each_carry_line_savings_suggestion,passed
+AU-3,tests/unit/test_audit.py::TestFindings::test_fuse,passed
+AU-3,tests/unit/test_audit.py::TestFindings::test_fuse_sub_variants,passed
+AU-3,tests/unit/test_audit.py::TestFindings::test_no_false_recip_on_constants,passed
+AU-3,tests/unit/test_audit.py::TestFindings::test_pow,passed
+AU-3,tests/unit/test_audit.py::TestFindings::test_pow_square_suggests_ssqr,passed
+AU-3,tests/unit/test_audit.py::TestFindings::test_recip,passed
+AU-3,tests/unit/test_audit.py::TestFindings::test_serdiv,passed
+AU-4,tests/unit/test_audit.py::TestOutputs::test_empty_file,passed
+AU-4,tests/unit/test_audit.py::TestOutputs::test_json_nodes_have_stable_ids,passed
+AU-4,tests/unit/test_audit.py::TestOutputs::test_structured_text_and_json_agree,passed
+AU-5,tests/golden/test_golden_audit.py::test_json_report_matches_seed_golden[example],passed
+AU-5,tests/golden/test_golden_audit.py::test_json_report_matches_seed_golden[feedback],passed
+AU-5,tests/golden/test_golden_audit.py::test_json_report_matches_seed_golden[gen500],passed
+AU-5,tests/golden/test_golden_audit.py::test_json_report_matches_seed_golden[normalize3d],passed
+AU-5,tests/golden/test_golden_audit.py::test_json_report_matches_seed_golden[rootsqr],passed
+AU-5,tests/golden/test_golden_audit.py::test_text_report_matches_seed_golden[example],passed
+AU-5,tests/golden/test_golden_audit.py::test_text_report_matches_seed_golden[feedback],passed
+AU-5,tests/golden/test_golden_audit.py::test_text_report_matches_seed_golden[gen500],passed
+AU-5,tests/golden/test_golden_audit.py::test_text_report_matches_seed_golden[normalize3d],passed
+AU-5,tests/golden/test_golden_audit.py::test_text_report_matches_seed_golden[rootsqr],passed
+BI-1,tests/unit/test_bisect.py::test_clean_run_reports_no_divergence,passed
+BI-1,tests/unit/test_bisect.py::test_corrupted_stage_localized,passed
+BI-1,tests/unit/test_bisect.py::test_unobserved_intermediates_tolerated,passed
+BI-2,tests/unit/test_bisect.py::test_delay_skew_classified_not_wrong_math,passed
+BI-3,tests/gui/test_polish.py::test_timeline_renders_bisection_states,passed
+C1,tests/unit/test_architecture.py::test_core_has_no_qt_imports,passed
+C4,tests/unit/test_architecture.py::test_no_hardcoded_latencies_outside_costmodel,passed
+CG-1,tests/unit/test_codegen.py::test_outputs_aligned_to_final_stage,passed
+CG-1,tests/unit/test_codegen.py::test_structure_of_generated_module,passed
+CG-2,tests/unit/test_codegen.py::test_generated_code_passes_own_linter[cosim/sample.m-gen_sample],passed
+CG-2,tests/unit/test_codegen.py::test_generated_code_passes_own_linter[normalize3d.m-gen_normalize3d],passed
+CG-2,tests/unit/test_codegen.py::test_generated_code_passes_own_linter[rootsqr.m-gen_rootsqr],passed
+CG-3,tests/integration/test_cosim_e2e.py::test_generated_rtl_passes_cosim,skipped
+CG-4,tests/unit/test_codegen.py::test_deterministic[cosim/sample.m-gen_sample],passed
+CG-4,tests/unit/test_codegen.py::test_deterministic[normalize3d.m-gen_normalize3d],passed
+CG-4,tests/unit/test_codegen.py::test_deterministic[rootsqr.m-gen_rootsqr],passed
+CG-4,tests/unit/test_codegen.py::test_golden_files[cosim/sample.m-gen_sample],passed
+CG-4,tests/unit/test_codegen.py::test_golden_files[normalize3d.m-gen_normalize3d],passed
+CG-4,tests/unit/test_codegen.py::test_golden_files[rootsqr.m-gen_rootsqr],passed
+CS-1,tests/unit/test_cosim.py::TestHarness::test_expected_matches_golden_model,passed
+CS-1,tests/unit/test_cosim.py::TestHarness::test_generated_collateral,passed
+CS-1,tests/unit/test_cosim.py::TestStimulus::test_all_inputs_in_every_vector,passed
+CS-1,tests/unit/test_cosim.py::TestStimulus::test_corner_cases_present,passed
+CS-1,tests/unit/test_cosim.py::TestStimulus::test_deterministic,passed
+CS-2,tests/unit/test_cosim.py::TestToolDetection::test_missing_verilator_message_is_actionable,passed
+CS-3,tests/unit/test_cosim.py::TestCompare::test_first_failing_vector_reported,passed
+CS-3,tests/unit/test_cosim.py::TestCompare::test_pass_with_error_stats,passed
+CS-3,tests/unit/test_cosim.py::TestCompare::test_truncated_stream_fails,passed
+CS-4,tests/integration/test_cosim_e2e.py::test_known_good_pair_passes_cosim,skipped
+DSE-1,tests/unit/test_dse.py::test_sweep_cancellation,passed
+DSE-1,tests/unit/test_dse.py::test_sweep_evaluates_grid_with_progress,passed
+DSE-2,tests/gui/test_dse_view.py::test_adopt_updates_workspace_format,passed
+DSE-2,tests/gui/test_dse_view.py::test_pareto_rows_marked_and_selectable,passed
+DSE-2,tests/unit/test_dse.py::TestPareto::test_dominated_points_removed,passed
+DSE-2,tests/unit/test_dse.py::TestPareto::test_front_sorted_by_error,passed
+DSE-2,tests/unit/test_dse.py::TestPareto::test_identical_metrics_both_kept,passed
+DSE-3,tests/unit/test_dse.py::TestCacheAndExport::test_cache_round_trip,passed
+DSE-3,tests/unit/test_dse.py::TestCacheAndExport::test_csv_and_json_export,passed
+FE-1,tests/unit/test_frontend.py::TestGrammar::test_all_binary_operators,passed
+FE-1,tests/unit/test_frontend.py::TestGrammar::test_comments_ignored,passed
+FE-1,tests/unit/test_frontend.py::TestGrammar::test_index_atom_is_opaque,passed
+FE-1,tests/unit/test_frontend.py::TestGrammar::test_known_function_call,passed
+FE-1,tests/unit/test_frontend.py::TestGrammar::test_line_continuation,passed
+FE-1,tests/unit/test_frontend.py::TestGrammar::test_numeric_literals,passed
+FE-1,tests/unit/test_frontend.py::TestGrammar::test_parentheses,passed
+FE-1,tests/unit/test_frontend.py::TestGrammar::test_power_operators,passed
+FE-1,tests/unit/test_frontend.py::TestGrammar::test_precedence,passed
+FE-1,tests/unit/test_frontend.py::TestGrammar::test_unary_minus_and_transpose,passed
+FE-2,tests/unit/test_frontend.py::TestDefUse::test_def_use_links_across_statements,passed
+FE-2,tests/unit/test_frontend.py::TestDefUse::test_feedback_ii_through_divider,passed
+FE-2,tests/unit/test_frontend.py::TestDefUse::test_loop_feedback,passed
+FE-2,tests/unit/test_frontend.py::TestDefUse::test_self_reference_detected,passed
+FE-3,tests/unit/test_frontend.py::TestSkipAndReport::test_comparison_operator_skipped,passed
+FE-3,tests/unit/test_frontend.py::TestSkipAndReport::test_string_statement_skipped,passed
+FE-3,tests/unit/test_frontend.py::TestSkipAndReport::test_unparseable_statement_skipped_with_line_and_reason,passed
+FE-3,tests/unit/test_frontend.py::TestSkipAndReport::test_unsupported_constructs_reported,passed
+FE-4,tests/unit/test_frontend.py::TestSpans::test_dag_nodes_carry_spans,passed
+FE-4,tests/unit/test_frontend.py::TestSpans::test_expression_spans_cover_source_text,passed
+FE-4,tests/unit/test_frontend.py::TestSpans::test_statement_span,passed
+FE-5,tests/unit/test_frontend.py::TestDefUse::test_loop_feedback,passed
+FV-1,tests/unit/test_formal.py::test_formal_project_generation,passed
+FV-2,tests/unit/test_formal.py::test_missing_tools_disable_formal,passed
+FX-1,tests/unit/test_fxp_ops.py::TestFxType::test_fx_wrapper,passed
+FX-1,tests/unit/test_fxp_ops.py::TestFxType::test_round_trip_exact_values,passed
+FX-1,tests/unit/test_fxp_ops.py::TestFxType::test_tofixed_rounds_to_nearest,passed
+FX-2,tests/unit/test_fxp_ops.py::TestSmul::test_smul_commutes,passed
+FX-2,tests/unit/test_fxp_ops.py::TestSmul::test_smul_is_floored_full_product,passed
+FX-3,tests/unit/test_fxp_evaluator.py::TestEvaluateFixed::test_division_pipeline_bit_exact,passed
+FX-3,tests/unit/test_fxp_evaluator.py::TestEvaluateFixed::test_every_intermediate_returned,passed
+FX-3,tests/unit/test_fxp_evaluator.py::TestEvaluateFixed::test_missing_input_is_clear_error,passed
+FX-3,tests/unit/test_fxp_evaluator.py::TestEvaluateFixed::test_raw_int_inputs_accepted,passed
+FX-3,tests/unit/test_fxp_evaluator.py::TestEvaluateFixed::test_vector_norm_pipeline,passed
+FX-4,tests/unit/test_fxp_coverage.py::test_fixed_tracks_float_reference[y = -a;-0.001],passed
+FX-4,"tests/unit/test_fxp_coverage.py::test_fixed_tracks_float_reference[y = [a, b];-0.001]",passed
+FX-4,tests/unit/test_fxp_coverage.py::test_fixed_tracks_float_reference[y = a + b;-0.001],passed
+FX-4,tests/unit/test_fxp_coverage.py::test_fixed_tracks_float_reference[y = a - b;-0.001],passed
+FX-4,tests/unit/test_fxp_coverage.py::test_fixed_tracks_float_reference[y = a .* b;-0.001],passed
+FX-4,tests/unit/test_fxp_coverage.py::test_fixed_tracks_float_reference[y = a ./ c;-0.001],passed
+FX-4,tests/unit/test_fxp_coverage.py::test_fixed_tracks_float_reference[y = a \\ c;-0.005],passed
+FX-4,tests/unit/test_fxp_coverage.py::test_fixed_tracks_float_reference[y = a ^ 2;-0.001],passed
+FX-4,tests/unit/test_fxp_coverage.py::test_fixed_tracks_float_reference[y = a ^ 3;-0.002],passed
+FX-4,tests/unit/test_fxp_coverage.py::test_fixed_tracks_float_reference[y = a';-0.001],passed
+FX-4,tests/unit/test_fxp_coverage.py::test_fixed_tracks_float_reference[y = abs(b);-0.001],passed
+FX-4,"tests/unit/test_fxp_coverage.py::test_fixed_tracks_float_reference[y = cross(u, v);-0.002]",passed
+FX-4,"tests/unit/test_fxp_coverage.py::test_fixed_tracks_float_reference[y = dot(u, v);-0.002]",passed
+FX-4,"tests/unit/test_fxp_coverage.py::test_fixed_tracks_float_reference[y = max(a, b);-0.001]",passed
+FX-4,"tests/unit/test_fxp_coverage.py::test_fixed_tracks_float_reference[y = min(a, b);-0.001]",passed
+FX-4,tests/unit/test_fxp_coverage.py::test_fixed_tracks_float_reference[y = norm(u);-0.002],passed
+FX-4,tests/unit/test_fxp_coverage.py::test_fixed_tracks_float_reference[y = sqrt(c);-0.001],passed
+FX-4,tests/unit/test_fxp_coverage.py::test_fixed_tracks_float_reference[y = sumsqr(u);-0.002],passed
+FX-4,tests/unit/test_fxp_coverage.py::test_fixed_tracks_float_reference[y = u + v;-0.001],passed
+FX-4,tests/unit/test_fxp_coverage.py::test_fixed_tracks_float_reference[y = u .* v;-0.001],passed
+FX-4,tests/unit/test_fxp_evaluator.py::TestFloatReference::test_compare_outputs_reports_stats,passed
+FX-4,tests/unit/test_fxp_evaluator.py::TestFloatReference::test_error_stats_metrics,passed
+FX-4,tests/unit/test_fxp_evaluator.py::TestFloatReference::test_float_eval_matches_math,passed
+FX-4,tests/unit/test_fxp_evaluator.py::TestFloatReference::test_infinite_reference_excluded,passed
+FX-5,tests/unit/test_fxp_ops.py::TestSdiv::test_divide_by_zero_is_hardware_faithful,passed
+FX-5,tests/unit/test_fxp_ops.py::TestSdiv::test_sdiv_truncates_toward_zero,passed
+FX-5,tests/unit/test_fxp_ops.py::TestSdiv::test_sinv_matches_sdiv_of_one,passed
+FX-5,tests/unit/test_fxp_ops.py::TestSnorm::test_snorm_round_trip_within_precision,passed
+FX-5,tests/unit/test_fxp_ops.py::TestSnorm::test_snorm_scale_down_floors,passed
+FX-5,tests/unit/test_fxp_ops.py::TestUsqrt::test_usqrt_equals_isqrt_of_prescaled,passed
+FX-5,tests/unit/test_fxp_ops.py::TestUsqrt::test_usqrt_monotone,passed
+FX-5,tests/unit/test_fxp_ops.py::TestWrapConsistency::test_abs_nonnegative_or_wrapped_min,passed
+FX-5,tests/unit/test_fxp_ops.py::TestWrapConsistency::test_add_sub_wrap,passed
+FX-5,tests/unit/test_fxp_ops.py::TestWrapConsistency::test_neg_involution,passed
+NF-1,tests/unit/test_perf.py::test_audit_500_statements_under_one_second,passed
+NF-2,tests/unit/test_perf.py::test_golden_model_throughput,passed
+NF-3,tests/gui/test_main_window.py::test_cold_start_under_two_seconds,passed
+NF-4,tests/gui/test_main_window.py::test_malformed_input_never_crashes,passed
+NF-4,tests/gui/test_main_window.py::test_problem_shows_toast_not_dialog,passed
+RP-1,tests/unit/test_ranges.py::TestPropagate::test_missing_input_range_is_error,passed
+RP-1,tests/unit/test_ranges.py::TestPropagate::test_near_zero_divisor_hazard,passed
+RP-1,tests/unit/test_ranges.py::TestPropagate::test_overflow_flagged_at_configured_format,passed
+RP-1,tests/unit/test_ranges.py::TestPropagate::test_per_node_ranges_and_bits,passed
+RP-1,tests/unit/test_ranges.py::TestPropagate::test_sqrt_chain,passed
+RP-2,tests/unit/test_ranges.py::test_affine_tighter_on_correlated_expression,passed
+RP-3,tests/unit/test_ranges.py::test_recommend_format_meets_budget_empirically,passed
+SL-1,tests/unit/test_svlint.py::test_backend_reported_and_fallback_works,passed
+SL-1,tests/unit/test_svlint.py::test_backends_agree_on_corpus[bad_data_reset.sv],passed
+SL-1,tests/unit/test_svlint.py::test_backends_agree_on_corpus[bad_missing_pipe.sv],passed
+SL-1,tests/unit/test_svlint.py::test_backends_agree_on_corpus[bad_naming.sv],passed
+SL-1,tests/unit/test_svlint.py::test_backends_agree_on_corpus[bad_stage_skew.sv],passed
+SL-1,tests/unit/test_svlint.py::test_backends_agree_on_corpus[bad_suffix.sv],passed
+SL-1,tests/unit/test_svlint.py::test_backends_agree_on_corpus[bad_unknown.sv],passed
+SL-1,tests/unit/test_svlint.py::test_backends_agree_on_corpus[bad_valid_chain.sv],passed
+SL-1,tests/unit/test_svlint.py::test_backends_agree_on_corpus[bad_valid_chain_div.sv],passed
+SL-1,tests/unit/test_svlint.py::test_backends_agree_on_corpus[bad_valid_unreset.sv],passed
+SL-1,tests/unit/test_svlint.py::test_backends_agree_on_corpus[bad_wrong_pipe.sv],passed
+SL-1,tests/unit/test_svlint.py::test_pyslang_absence_falls_back,passed
+SL-2,tests/unit/test_svlint.py::test_cycle_model_matches_cost_model,passed
+SL-2,tests/unit/test_svlint.py::test_delay_match_reports_both_signals_and_fix,passed
+SL-2,tests/unit/test_svlint.py::test_known_good_files_are_lint_clean[good_div.sv],passed
+SL-2,tests/unit/test_svlint.py::test_known_good_files_are_lint_clean[good_example.sv],passed
+SL-2,tests/unit/test_svlint.py::test_known_good_files_are_lint_clean[good_scalar.sv],passed
+SL-3,tests/unit/test_svlint.py::test_each_check_is_suppressible,passed
+SL-3,tests/unit/test_svlint.py::test_known_bad_files_trigger_exactly_their_finding[bad_data_reset.sv-reset],passed
+SL-3,tests/unit/test_svlint.py::test_known_bad_files_trigger_exactly_their_finding[bad_missing_pipe.sv-delay-match],passed
+SL-3,tests/unit/test_svlint.py::test_known_bad_files_trigger_exactly_their_finding[bad_naming.sv-naming],passed
+SL-3,tests/unit/test_svlint.py::test_known_bad_files_trigger_exactly_their_finding[bad_stage_skew.sv-delay-match],passed
+SL-3,tests/unit/test_svlint.py::test_known_bad_files_trigger_exactly_their_finding[bad_suffix.sv-suffix],passed
+SL-3,tests/unit/test_svlint.py::test_known_bad_files_trigger_exactly_their_finding[bad_unknown.sv-unknown-module],passed
+SL-3,tests/unit/test_svlint.py::test_known_bad_files_trigger_exactly_their_finding[bad_valid_chain.sv-valid-chain],passed
+SL-3,tests/unit/test_svlint.py::test_known_bad_files_trigger_exactly_their_finding[bad_valid_chain_div.sv-valid-chain],passed
+SL-3,tests/unit/test_svlint.py::test_known_bad_files_trigger_exactly_their_finding[bad_valid_unreset.sv-reset],passed
+SL-3,tests/unit/test_svlint.py::test_known_bad_files_trigger_exactly_their_finding[bad_wrong_pipe.sv-delay-match],passed
+SL-4,tests/unit/test_svlint.py::test_findings_crossref_dag_nodes,passed
+TH-1,tests/unit/test_architecture.py::test_no_hex_colors_outside_theme_files,passed
+TH-2,tests/unit/test_theme_tokens.py::test_default_theme_is_gruvbox_dark_soft,passed
+TH-3,tests/unit/test_theme_tokens.py::test_bundled_alternates_present_and_valid,passed
+TH-3,tests/unit/test_theme_tokens.py::test_malformed_theme_fails_validation,passed
+TH-4,tests/gui/test_main_window.py::test_theme_live_switch_no_restart,passed
+TH-5,tests/unit/test_theme_tokens.py::test_bundled_alternates_present_and_valid,passed
+UI-1,tests/gui/test_main_window.py::test_sidebar_has_eight_capabilities_plus_settings,passed
+UI-2,tests/gui/test_main_window.py::test_format_change_reauditss_live,passed
+UI-2,tests/gui/test_main_window.py::test_opening_file_populates_views_and_statusbar,passed
+UI-4,tests/gui/test_main_window.py::test_navigation_switches_views,passed
+UI-4,tests/gui/test_polish.py::test_command_palette_filters_and_runs,passed
+UI-6,tests/gui/test_polish.py::test_findings_table_sorts_filters_and_clicks_through,passed
+VZ-1,tests/gui/test_polish.py::test_slack_overlay_toggle,passed
+VZ-1,tests/unit/test_viz.py::test_critical_path_and_dividers_marked,passed
+VZ-1,tests/unit/test_viz.py::test_timeline_axis_is_cycles,passed
+VZ-2,tests/gui/test_main_window.py::test_finding_click_through_selects_node_and_highlights_source,passed
+VZ-3,tests/gui/test_main_window.py::test_visualizer_svg_export,passed
+VZ-3,tests/unit/test_viz.py::test_svg_export_uses_palette_tokens_only,passed

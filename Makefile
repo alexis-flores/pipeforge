@@ -1,5 +1,5 @@
 PY := .venv/bin/python
-COV ?= 60
+COV ?= 80
 
 .PHONY: verify lint type test
 
@@ -14,3 +14,7 @@ type:
 
 test:
 	QT_QPA_PLATFORM=offscreen .venv/bin/pytest -q --cov=src/pipeforge --cov-fail-under=$(COV)
+
+rtm:
+	QT_QPA_PLATFORM=offscreen .venv/bin/pytest -q --rtm-out=docs/rtm.csv
+	.venv/bin/python tools/check_rtm.py

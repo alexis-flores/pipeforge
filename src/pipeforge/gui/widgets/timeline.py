@@ -33,6 +33,7 @@ class TimelineWidget(QWidget):
         self._selected = ""
         self._dimmed: frozenset[str] = frozenset()
         self._status: dict[str, str] = {}  # nid -> 'ok'|'bad' (bisection, BI-3)
+        self._slack: dict[str, int] = {}  # nid -> spare cycles (VZ-1 overlay)
         self.setMinimumHeight(120)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
@@ -60,6 +61,11 @@ class TimelineWidget(QWidget):
         """BI-3: matched green, first divergent red, downstream dimmed."""
         self._status = dict(status)
         self._dimmed = dimmed
+        self.update()
+
+    def set_slack(self, slack: dict[str, int]) -> None:
+        """Per-node slack overlay; empty dict hides it (VZ-1)."""
+        self._slack = dict(slack)
         self.update()
 
     # -- geometry ------------------------------------------------------------
@@ -171,9 +177,13 @@ class TimelineWidget(QWidget):
             if box.nid in self._dimmed:
                 text_color = QColor(t["textDisabled"])
             painter.setPen(text_color)
+            label = box.label
+            if self._slack:
+                slack = self._slack.get(box.nid, 0)
+                label = f"{label}  +{slack}" if slack else label
             painter.drawText(
                 rect.adjusted(5, 0, -3, 0),
                 Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft,
-                box.label,
+                label,
             )
         painter.end()

@@ -53,6 +53,7 @@ def test_default_theme_is_gruvbox_dark_soft() -> None:
 
 
 @pytest.mark.req("TH-3")
+@pytest.mark.req("TH-5")
 def test_bundled_alternates_present_and_valid() -> None:
     names = builtin_theme_names()
     for required in ("gruvbox-dark-soft", "gruvbox-dark-hard", "gruvbox-light", "high-contrast"):

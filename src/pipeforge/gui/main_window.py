@@ -221,6 +221,38 @@ class MainWindow(QMainWindow):
             lambda: self.console_dock.setVisible(not self.console_dock.isVisible())
         )
         self.addAction(toggle_console)
+        palette_action = QAction("Command palette", self)
+        palette_action.setShortcut(QKeySequence("Ctrl+K"))
+        palette_action.triggered.connect(self.open_palette)
+        self.addAction(palette_action)
+
+    def palette_commands(self) -> list[tuple[str, object]]:
+        commands: list[tuple[str, object]] = [
+            ("Open file…", self._open_dialog),
+            ("Re-run audit", self.workspace.rerun),
+            (
+                "Toggle console",
+                lambda: self.console_dock.setVisible(not self.console_dock.isVisible()),
+            ),
+        ]
+        for name, label, _icon in CAPABILITIES:
+            commands.append((f"Go to {label}", lambda n=name: self.show_view(n)))
+        for theme_name, display in self.themes.available().items():
+            commands.append(
+                (
+                    f"Theme: {display}",
+                    lambda n=theme_name: (self.themes.apply(n), self.themes.save()),
+                )
+            )
+        return commands
+
+    def open_palette(self) -> None:
+        from pipeforge.gui.widgets.palette import CommandPalette
+
+        palette = CommandPalette(self)
+        palette.set_commands(self.palette_commands())  # type: ignore[arg-type]
+        palette.open_centered(self)
+        self._palette = palette
 
     # -- behavior --------------------------------------------------------------
 

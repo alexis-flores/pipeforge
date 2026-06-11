@@ -172,3 +172,22 @@ def layout_for_audit(audit: object, refine_with_dot: bool = False) -> Layout:
     if refine_with_dot:
         layout = dot_refined_rows(audit.dag, layout)
     return layout
+
+
+def compute_slack(dag: Dag) -> dict[str, int]:
+    """Per-node slack: cycles the node could slip without growing the
+    critical path (VZ-1 'slack on demand')."""
+    total = max((dag.nodes[s.root].ready for s in dag.statements), default=0)
+    # latest required time, propagated backward from consumers
+    latest: dict[str, int] = {}
+    consumers: dict[str, list[str]] = {}
+    for nid in dag.order:
+        for a in dag.nodes[nid].args:
+            consumers.setdefault(a, []).append(nid)
+    for nid in reversed(dag.order):
+        cons = consumers.get(nid, [])
+        if not cons:
+            latest[nid] = total
+            continue
+        latest[nid] = min(latest[c] - dag.nodes[c].lat for c in cons)
+    return {nid: max(latest[nid] - dag.nodes[nid].ready, 0) for nid in dag.order}
