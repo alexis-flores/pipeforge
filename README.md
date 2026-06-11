@@ -210,7 +210,9 @@ bit-for-bit, not "approximately".
   findings, live MATLAB info when a snapshot is loaded — and the source file with
   the node's exact originating text highlighted.
 - **Workspace context**: opening a `.m` populates *all* views; a same-named `.sv`
-  loads alongside automatically. Changing WIDTH/SCALE re-audits everything live.
+  loads alongside automatically; opening a `.mat` makes it the session's MATLAB
+  setup (browse it in the Workspace view after a refresh). Changing WIDTH/SCALE
+  re-audits everything live.
 
 Keyboard (everything is reachable by Tab as well):
 
@@ -462,6 +464,18 @@ class, size, `fi` WordLength/FractionLength, min/max, and values (capped at 4096
 elements; min/max always cover the full array). Struct fields come back dotted
 (`cfg.filter.taps`). Snapshots are **cached** and only retaken on explicit refresh
 (`--force`, the Detect…/Refresh actions) because MATLAB takes seconds to start.
+
+**Inspecting a `.mat` parameter file alone** — no script needed:
+
+```sh
+pipeforge-cli matlab snapshot params.mat
+```
+
+MATLAB loads the file and PipeForge lists every variable's name (struct fields
+dotted), class, size, fi format, and range. In the GUI, the **Workspace** view
+(Ctrl+3) is the browser: open a `.mat` with Ctrl+O (it becomes the session's
+setup), hit **Refresh from MATLAB**, then sort/filter the variable table; with a
+script also open, clicking a row selects the matching DAG node everywhere.
 
 **With a snapshot attached** (`--snapshot` on `audit`/`ranges`, or **Ctrl+Shift+M**
 in the GUI):

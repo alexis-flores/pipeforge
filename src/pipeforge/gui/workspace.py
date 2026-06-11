@@ -26,7 +26,7 @@ class _SnapshotSignals(QObject):
 class _SnapshotJob(QRunnable):
     """Runs the MATLAB bridge off the GUI thread (UI-3); MATLAB is slow."""
 
-    def __init__(self, script: Path, setup: Path | None) -> None:
+    def __init__(self, script: Path | None, setup: Path | None) -> None:
         super().__init__()
         self.script = script
         self.setup = setup
@@ -64,6 +64,7 @@ class Workspace(QObject):
         self.scale = 12
         self.m_path: Path | None = None
         self.sv_path: Path | None = None
+        self.mat_path: Path | None = None  # opened .mat: session setup override
         self.source = ""
         self.audit: Audit | None = None
         self.selected_node = ""
@@ -77,11 +78,24 @@ class Workspace(QObject):
     # -- loading -----------------------------------------------------------
 
     def open_file(self, path: Path) -> None:
-        """Open a .m (audits it) or a companion .sv. Never raises (NF-4)."""
+        """Open a .m (audits it), a companion .sv, or a .mat parameter file.
+
+        Opening a .mat never starts MATLAB (manual-refresh policy); it becomes
+        this session's workspace setup — Ctrl+Shift+M loads it, alone or
+        before the open script. Never raises (NF-4).
+        """
         try:
             if path.suffix.lower() == ".sv":
                 self.sv_path = path
                 self.fileChanged.emit(str(path))
+                return
+            if path.suffix.lower() == ".mat":
+                self.mat_path = path
+                self.fileChanged.emit(str(path))
+                self.logMessage.emit(
+                    f"workspace: {path.name} set as MATLAB setup — refresh "
+                    "(Ctrl+Shift+M) to load and browse it"
+                )
                 return
             text = path.read_text(encoding="utf-8", errors="replace")
         except OSError as exc:
@@ -131,18 +145,25 @@ class Workspace(QObject):
     # -- MATLAB bridge (manual refresh only; MATLAB start is slow) ----------
 
     def refresh_from_matlab(self) -> None:
-        """Snapshot the live MATLAB workspace, then re-audit with it."""
-        if self.m_path is None:
-            self.problem.emit("Open a MATLAB file first, then refresh from MATLAB.")
+        """Snapshot the live MATLAB workspace, then re-audit with it.
+
+        Works with a .m script (setup loaded first), a .mat alone (load-only
+        snapshot for browsing parameter types), or both.
+        """
+        from pipeforge.services.matlab_bridge import MatlabConfig
+
+        setup = self.mat_path if self.mat_path is not None else MatlabConfig.load().setup
+        if self.m_path is None and setup is None:
+            self.problem.emit(
+                "Open a MATLAB script or a .mat parameter file first, then refresh from MATLAB."
+            )
             return
         if self._refreshing:
             self.problem.emit("A MATLAB refresh is already running.")
             return
-        from pipeforge.services.matlab_bridge import MatlabConfig
-
         self._refreshing = True
         self.logMessage.emit("matlab: refreshing workspace snapshot…")
-        job = _SnapshotJob(self.m_path, MatlabConfig.load().setup)
+        job = _SnapshotJob(self.m_path, setup)
         job.signals.logged.connect(self.logMessage.emit)
         job.signals.finished.connect(self._on_snapshot)
         job.signals.failed.connect(self._on_snapshot_failed)

@@ -124,3 +124,83 @@ def test_settings_matlab_round_trip(
     cfg = MatlabConfig.load()
     assert cfg.command == ["docker", "exec", "matlab", "matlab"]
     assert cfg.setup == tmp_path / "setup.mat"
+
+
+def test_workspace_view_lists_snapshot_variables(window: MainWindow) -> None:
+    from pipeforge.gui.views.matlab_view import MatlabView
+
+    view = window.views["golden"]
+    assert isinstance(view, MatlabView)
+    window.workspace.snapshot = demo_snapshot()
+    window.workspace.snapshotChanged.emit(window.workspace.snapshot)
+    names = {view.table.item(r, 0).text() for r in range(view.table.rowCount())}
+    assert names == {"cfg.gain", "x", "offset"}
+    # fi column populated for the fixed-point variable
+    by_name = {
+        view.table.item(r, 0).text(): view.table.item(r, 3).text()
+        for r in range(view.table.rowCount())
+    }
+    assert by_name["offset"] == "18/14"
+    assert by_name["x"] == ""
+    assert "3 variables" in view.meta.text()
+    # filter narrows
+    view.filter_edit.setText("cfg")
+    assert view.table.rowCount() == 1
+
+
+def test_workspace_view_row_click_selects_dag_node(window: MainWindow, qtbot: QtBot) -> None:
+    from pipeforge.gui.views.matlab_view import MatlabView
+
+    view = window.views["golden"]
+    assert isinstance(view, MatlabView)
+    window.workspace.snapshot = demo_snapshot()
+    window.workspace.rerun()
+    window.workspace.snapshotChanged.emit(window.workspace.snapshot)
+    row = next(
+        r for r in range(view.table.rowCount()) if view.table.item(r, 0).text() == "cfg.gain"
+    )
+    with qtbot.waitSignal(window.workspace.selectionChanged, timeout=1000):
+        view._on_row(row, 0)
+    audit = window.workspace.audit
+    assert audit is not None
+    assert audit.dag.nodes[window.workspace.selected_node].label == "cfg.gain"
+
+
+def test_mat_alone_refresh_no_script(
+    qtbot: QtBot, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Open only a .mat — refresh snapshots it with script=None."""
+    from pipeforge.services import matlab_bridge
+
+    app = QApplication.instance()
+    assert isinstance(app, QApplication)
+    win = MainWindow(Workspace(), ThemeManager(app))
+    qtbot.addWidget(win)
+    win.show()
+    params = tmp_path / "params.mat"
+    params.write_bytes(b"MATLAB 5.0")
+    win.open_path(params)
+    assert win.workspace.mat_path == params
+    assert win.workspace.m_path is None
+
+    captured: dict[str, object] = {}
+
+    def fake_take(script, setup=None, **_kw):  # type: ignore[no-untyped-def]
+        captured["script"] = script
+        captured["setup"] = setup
+        return demo_snapshot()
+
+    monkeypatch.setattr(matlab_bridge, "take_snapshot", fake_take)
+    with qtbot.waitSignal(win.workspace.snapshotChanged, timeout=4000):
+        win.workspace.refresh_from_matlab()
+    assert captured["script"] is None
+    assert captured["setup"] == params
+    from pipeforge.gui.views.matlab_view import MatlabView
+
+    view = win.views["golden"]
+    assert isinstance(view, MatlabView)
+    assert view.table.rowCount() == 3  # browseable with no .m open
+
+
+def test_sidebar_shows_workspace_label(window: MainWindow) -> None:
+    assert window.nav_buttons["golden"].accessibleName() == "Workspace"

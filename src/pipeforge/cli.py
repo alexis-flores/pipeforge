@@ -309,6 +309,14 @@ def _cmd_matlab(args: argparse.Namespace) -> int:
         from pipeforge.core.fxp.validate import ValidateError, compare_to_matlab
 
         m_path = Path(args.file)
+        if m_path.suffix.lower() == ".mat":
+            print(
+                "validate needs a .m script (its statements are what get checked); "
+                "to browse a .mat alone use: pipeforge-cli matlab snapshot "
+                f"{m_path.name}",
+                file=sys.stderr,
+            )
+            return 2
         try:
             src = m_path.read_text(encoding="utf-8")
         except OSError as exc:
@@ -371,9 +379,11 @@ def _cmd_matlab(args: argparse.Namespace) -> int:
         print(f"version: {version}")
         return 0
 
-    # snapshot
+    # snapshot — a .m script (with optional setup) or a .mat file by itself
+    from pipeforge.services.matlab_bridge import snapshot_target
+
     try:
-        snapshot = take_snapshot(
+        snapshot = snapshot_target(
             Path(args.file),
             setup=Path(args.setup) if args.setup else None,
             config=config,
@@ -389,7 +399,8 @@ def _cmd_matlab(args: argparse.Namespace) -> int:
     else:
         if snapshot.error:
             print(f"script error (partial snapshot): {snapshot.error}")
-        print(f"snapshot of {snapshot.script} — MATLAB {snapshot.matlab_version}")
+        origin = snapshot.script or snapshot.setup or "workspace"
+        print(f"snapshot of {origin} — MATLAB {snapshot.matlab_version}")
         for name, v in sorted(snapshot.variables.items()):
             fi = f" fi {v.fi.width}/{v.fi.scale}" if v.fi else ""
             rng = (
@@ -528,9 +539,10 @@ def build_parser() -> argparse.ArgumentParser:
         help="find a working MATLAB (env/PATH/installs/distrobox) and save it to settings",
     )
     p_snap = matlab_sub.add_parser(
-        "snapshot", help="run setup + script in MATLAB and capture every variable"
+        "snapshot",
+        help="capture every variable: run setup + a .m script, or load a .mat alone",
     )
-    p_snap.add_argument("file", help="MATLAB script (.m)")
+    p_snap.add_argument("file", help="MATLAB script (.m) or parameter file (.mat)")
     p_snap.add_argument("--setup", help="workspace setup: a .m to run or a .mat to load")
     p_snap.add_argument("-o", "--output", help="write snapshot JSON here")
     p_snap.add_argument(

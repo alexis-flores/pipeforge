@@ -43,7 +43,7 @@ from pipeforge.services.tools import detect_tools
 CAPABILITIES = [
     ("audit", "Audit", "⏱"),
     ("visualizer", "Visualizer", "⛓"),
-    ("golden", "Golden model", "≡"),
+    ("golden", "Workspace", "≡"),
     ("cosim", "Co-simulation", "▶"),
     ("bisect", "Bisection", "÷"),
     ("linter", "Linter", "✓"),
@@ -95,11 +95,9 @@ class MainWindow(QMainWindow):
         self.views: dict[str, QWidget] = {}
         self.views["audit"] = AuditView(self.workspace)
         self.views["visualizer"] = VisualizerView(self.workspace)
-        self.views["golden"] = PlaceholderView(
-            "Golden model",
-            "Open a MATLAB file, then run a fixed-vs-float comparison from the CLI:\n"
-            "pipeforge-cli audit <file.m> — GUI evaluation arrives with co-simulation.",
-        )
+        from pipeforge.gui.views.matlab_view import MatlabView
+
+        self.views["golden"] = MatlabView(self.workspace)
         self.views["cosim"] = PlaceholderView(
             "Co-simulation",
             "Open a MATLAB file and its SystemVerilog implementation to compare "

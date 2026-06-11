@@ -359,3 +359,93 @@ class TestPortableDetection:
         self._isolate(monkeypatch, tmp_path, path_dirs="/usr/bin:/bin")
         with pytest.raises(mb.MatlabUnavailable, match="No working MATLAB"):
             mb.detect_and_save(timeout=5)
+
+
+class TestMatAloneSnapshots:
+    """Script-optional snapshots: inspect a .mat parameter file by itself."""
+
+    def test_query_script_without_script_guards_run(self, tmp_path: Path) -> None:
+        text = mb.render_query_script(None, Path("/home/u/params.mat"), tmp_path / "o.json")
+        assert "pf_q_script = '';" in text
+        assert "if ~isempty(pf_q_script)" in text  # run is guarded
+        assert "load(pf_q_setup);" in text
+
+    def test_take_snapshot_requires_something(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+        with pytest.raises(mb.MatlabUnavailable, match="nothing to snapshot"):
+            mb.take_snapshot(None, setup=None, config=mb.MatlabConfig(command=["sh"]))
+
+    def test_snapshot_target_mat_dispatch(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        seen: dict[str, object] = {}
+
+        def fake_take(script, setup=None, **_kw):  # type: ignore[no-untyped-def]
+            seen["script"] = script
+            seen["setup"] = setup
+            return WorkspaceSnapshot()
+
+        monkeypatch.setattr(mb, "take_snapshot", fake_take)
+        params = tmp_path / "params.mat"
+        params.write_bytes(b"MATLAB 5.0")
+        mb.snapshot_target(params)
+        assert seen == {"script": None, "setup": params}
+
+    def test_snapshot_target_m_passthrough(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        seen: dict[str, object] = {}
+
+        def fake_take(script, setup=None, **_kw):  # type: ignore[no-untyped-def]
+            seen["script"] = script
+            seen["setup"] = setup
+            return WorkspaceSnapshot()
+
+        monkeypatch.setattr(mb, "take_snapshot", fake_take)
+        script = tmp_path / "model.m"
+        setup = tmp_path / "params.mat"
+        mb.snapshot_target(script, setup=setup)
+        assert seen == {"script": script, "setup": setup}
+
+    def test_snapshot_target_rejects_mat_plus_setup(self, tmp_path: Path) -> None:
+        with pytest.raises(mb.MatlabUnavailable, match="already a data file"):
+            mb.snapshot_target(tmp_path / "params.mat", setup=tmp_path / "other.m")
+
+    def test_cache_key_distinguishes_script_none(self, tmp_path: Path) -> None:
+        setup = tmp_path / "p.mat"
+        setup.write_bytes(b"x")
+        script = tmp_path / "m.m"
+        script.write_text("y = x;")
+        assert mb._cache_key(None, setup, ["matlab"]) != mb._cache_key(script, setup, ["matlab"])
+
+
+@pytest.mark.tool("matlab")
+@requires_matlab
+def test_live_mat_alone_snapshot(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Generate a real .mat in MATLAB, then snapshot it with no script."""
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(Path.home() / ".config"))
+    import subprocess
+
+    from pipeforge.paths import config_dir
+
+    work = config_dir() / "matlab_work"  # home-shared with the container
+    work.mkdir(parents=True, exist_ok=True)
+    mat = work / "pf_test_params.mat"
+    mat.unlink(missing_ok=True)
+    cfg = mb.MatlabConfig.load()
+    gen = (
+        f"gain = 0.5; taps = [0.25 -0.5 0.125]; cfg.mode = 2; save('{mat}', 'gain', 'taps', 'cfg');"
+    )
+    subprocess.run([*cfg.command, "-batch", gen], capture_output=True, timeout=180, check=True)
+    assert mat.is_file()
+    snap = mb.snapshot_target(mat, force=True)
+    assert snap.error == ""
+    gain = snap.get("gain")
+    assert gain is not None and gain.class_name == "double" and gain.values == (0.5,)
+    taps = snap.get("taps")
+    assert taps is not None and taps.size == (1, 3)
+    mode = snap.get("cfg.mode")
+    assert mode is not None and mode.values == (2.0,)
+    mat.unlink(missing_ok=True)
