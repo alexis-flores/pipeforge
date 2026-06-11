@@ -46,7 +46,7 @@ CG-1,tests/unit/test_codegen.py::test_structure_of_generated_module,passed
 CG-2,tests/unit/test_codegen.py::test_generated_code_passes_own_linter[cosim/sample.m-gen_sample],passed
 CG-2,tests/unit/test_codegen.py::test_generated_code_passes_own_linter[normalize3d.m-gen_normalize3d],passed
 CG-2,tests/unit/test_codegen.py::test_generated_code_passes_own_linter[rootsqr.m-gen_rootsqr],passed
-CG-3,tests/integration/test_cosim_e2e.py::test_generated_rtl_passes_cosim,skipped
+CG-3,tests/integration/test_cosim_e2e.py::test_generated_rtl_passes_cosim,passed
 CG-4,tests/unit/test_codegen.py::test_deterministic[cosim/sample.m-gen_sample],passed
 CG-4,tests/unit/test_codegen.py::test_deterministic[normalize3d.m-gen_normalize3d],passed
 CG-4,tests/unit/test_codegen.py::test_deterministic[rootsqr.m-gen_rootsqr],passed
@@ -62,7 +62,7 @@ CS-2,tests/unit/test_cosim.py::TestToolDetection::test_missing_verilator_message
 CS-3,tests/unit/test_cosim.py::TestCompare::test_first_failing_vector_reported,passed
 CS-3,tests/unit/test_cosim.py::TestCompare::test_pass_with_error_stats,passed
 CS-3,tests/unit/test_cosim.py::TestCompare::test_truncated_stream_fails,passed
-CS-4,tests/integration/test_cosim_e2e.py::test_known_good_pair_passes_cosim,skipped
+CS-4,tests/integration/test_cosim_e2e.py::test_known_good_pair_passes_cosim,passed
 DSE-1,tests/unit/test_dse.py::test_sweep_cancellation,passed
 DSE-1,tests/unit/test_dse.py::test_sweep_evaluates_grid_with_progress,passed
 DSE-2,tests/gui/test_dse_view.py::test_adopt_updates_workspace_format,passed
