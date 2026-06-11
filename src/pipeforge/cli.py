@@ -421,6 +421,19 @@ def _load_snapshot_arg(path_str: str | None):  # -> WorkspaceSnapshot | None
     return WorkspaceSnapshot.from_json(Path(path_str).read_text(encoding="utf-8"))
 
 
+def _cmd_demos(_args: argparse.Namespace) -> int:
+    from pipeforge.demos import demo_dir, load_index
+
+    print(f"packaged demos in {demo_dir()}\n")
+    for entry in load_index():
+        print(f"{entry.demo_id} — {entry.title}")
+        print(f"  {entry.description}")
+        print(f"  try:  {entry.command}")
+        print(f"  gui:  {entry.gui}")
+        print()
+    return 0
+
+
 def _add_fixedp_args(p: argparse.ArgumentParser) -> None:
     p.add_argument("-w", "--width", type=int, default=16, help="fixedp WIDTH (default 16)")
     p.add_argument("-s", "--scale", type=int, default=12, help="fixedp SCALE (default 12)")
@@ -558,6 +571,11 @@ def build_parser() -> argparse.ArgumentParser:
     p_val.add_argument("--force", action="store_true", help="retake the snapshot")
     _add_fixedp_args(p_val)
     p_matlab.set_defaults(func=_cmd_matlab)
+
+    p_demos = sub.add_parser(
+        "demos", help="list the packaged demos with paths and suggested commands"
+    )
+    p_demos.set_defaults(func=_cmd_demos)
 
     return parser
 

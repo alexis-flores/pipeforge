@@ -37,6 +37,7 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 "pipeforge.gui.theme" = ["themes/*.json"]
+"pipeforge.demos" = ["*.json", "*.m", "*.sv", "matlab/*.m", "matlab/*.mat"]
 
 [tool.ruff]
 line-length = 100

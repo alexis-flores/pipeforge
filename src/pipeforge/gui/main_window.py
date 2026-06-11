@@ -166,7 +166,7 @@ class MainWindow(QMainWindow):
     def _build_statusbar(self) -> None:
         sb = self.statusBar()
         assert sb is not None
-        self.file_label = QLabel("No file open — Ctrl+O to begin")
+        self.file_label = QLabel("No file open — Ctrl+O to begin, Ctrl+Shift+D for demos")
         self.format_chip = QLabel()
         self.format_chip.setObjectName("chip")
         self.tools_label = QLabel()
@@ -229,10 +229,21 @@ class MainWindow(QMainWindow):
         matlab_refresh.setShortcut(QKeySequence("Ctrl+Shift+M"))
         matlab_refresh.triggered.connect(self.workspace.refresh_from_matlab)
         self.addAction(matlab_refresh)
+        demos_action = QAction("Open demos", self)
+        demos_action.setShortcut(QKeySequence("Ctrl+Shift+D"))
+        demos_action.triggered.connect(self.open_demos)
+        self.addAction(demos_action)
+
+    def open_demos(self) -> None:
+        from pipeforge.gui.widgets.demos_dialog import DemosDialog
+
+        dialog = DemosDialog(self.open_path, self)
+        dialog.exec()
 
     def palette_commands(self) -> list[tuple[str, object]]:
         commands: list[tuple[str, object]] = [
             ("Open file…", self._open_dialog),
+            ("Open demos…", self.open_demos),
             ("Re-run audit", self.workspace.rerun),
             ("Refresh from MATLAB", self.workspace.refresh_from_matlab),
             (
@@ -288,7 +299,7 @@ class MainWindow(QMainWindow):
         self.log(message)
 
     def _on_file(self, path: str) -> None:
-        self.file_label.setText(path or "No file open — Ctrl+O to begin")
+        self.file_label.setText(path or "No file open — Ctrl+O to begin, Ctrl+Shift+D for demos")
         self.source_view.setPlainText(self.workspace.source)
 
     def _on_audit(self, audit: object) -> None:

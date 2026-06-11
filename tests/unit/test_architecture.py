@@ -66,7 +66,16 @@ def test_no_hardcoded_latencies_outside_costmodel() -> None:
 
 
 # Grows phase by phase; by Phase 8 it must list every P0 capability (§8.5d).
-EXPECTED_CLI_COMMANDS: set[str] = {"audit", "lint", "cosim", "codegen", "ranges", "dse", "matlab"}
+EXPECTED_CLI_COMMANDS: set[str] = {
+    "audit",
+    "lint",
+    "cosim",
+    "codegen",
+    "ranges",
+    "dse",
+    "matlab",
+    "demos",
+}
 
 
 @pytest.mark.req("8.5d")

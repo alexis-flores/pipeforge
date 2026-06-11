@@ -143,6 +143,30 @@ Or just run `pipeforge`, hit **Ctrl+O**, open `seed/example.m`, and click around
 
 ---
 
+## Demos
+
+A curated demo per capability ships **inside the package** (pip installs get them
+too). List them with paths and copy-pasteable commands:
+
+```sh
+pipeforge-cli demos
+```
+
+In the GUI, press **Ctrl+Shift+D** (or palette → "Open demos…") for the Demos
+window: pick one, read what to expect, click **Open in PipeForge**.
+
+| Demo | Shows |
+|---|---|
+| `01_findings` | all seven audit findings in one small script |
+| `02_normalize3d` | the 48-cycle critical path and divider-orange timeline |
+| `03_pipeline` (.m + .sv) | clean lint, codegen comparison, bit-exact co-simulation |
+| `04_lint_bugs` | a missing-`PIPE` delay-match bug + a wrong valid chain, with exact fixes |
+| `05_ranges` | overflow risk, a near-zero divisor, and an *honest* format recommendation (unmet budget until you fix the hazard) |
+| `06_dse` | the WIDTH/SCALE latency/error trade and the Pareto front |
+| `07_matlab` | live snapshot with dotted struct fields, `.mat`-alone browsing, statement-by-statement validation |
+
+---
+
 ## Concepts you need
 
 **nkMatlib** is a pipelined fixed-point SystemVerilog library: throughput is one
@@ -224,6 +248,7 @@ Keyboard (everything is reachable by Tab as well):
 | Ctrl+K | command palette (type-to-filter every action and theme) |
 | Ctrl+` | toggle the console |
 | Ctrl+Shift+M | refresh from MATLAB |
+| Ctrl+Shift+D | open the Demos window |
 
 **Theming**: Gruvbox Dark Soft by default; Gruvbox Dark Hard, Gruvbox Light, and
 High Contrast are bundled. Switch live in Settings (persists). Drop your own JSON
@@ -560,6 +585,11 @@ visible reason** when the tool is absent; CI runs a tools-installed job so they
 execute somewhere. The binding spec is `PipeForge_SRS.md`; per-phase reports live
 in `docs/phase_reports/`; `seed/` is the frozen reference auditor whose behavior
 the golden files pin.
+
+Handoff state: all SRS phases 0–8 complete and tagged (`phase-N-complete`), full
+suite green with every P0 requirement traced to a passing test (`make rtm`), and
+the MATLAB bridge + co-simulation verified live (R2026a in distrobox, Verilator
+5.048).
 
 ---
 
