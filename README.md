@@ -38,10 +38,28 @@ formats, and values — and the answers change the analysis:
 - `pipeforge-cli matlab validate dsp.m --setup data.mat` compares the bit-exact golden
   model against MATLAB's own values, statement by statement (bit-clean / max-error / SQNR).
 
-MATLAB is located via a configurable command template (Settings → MATLAB command);
-the default targets a `matlab-sandbox` Distrobox container. Snapshots are taken only
-on explicit refresh (MATLAB startup is slow) and cached until you retake them.
-Struct-field access (`a.b.c`) is a documented grammar extension over the original SRS.
+Snapshots are taken only on explicit refresh (MATLAB startup is slow) and cached
+until you retake them. Struct-field access (`a.b.c`) is a documented grammar
+extension over the original SRS.
+
+### Portability: pointing PipeForge at *your* MATLAB
+
+The MATLAB location is **per-machine state** (`~/.config/pipeforge/settings.json`),
+never part of the repo — clone the project anywhere and each computer keeps its own.
+Resolution order:
+
+1. Explicit setting (Settings → MATLAB command, or the settings.json `matlabCommand`)
+2. `PIPEFORGE_MATLAB` environment variable (a shell-style command)
+3. `matlab` on PATH
+4. Standard installs: `/usr/local/MATLAB/R20xx`, `/opt/MATLAB/R20xx`,
+   `/Applications/MATLAB_R20xx.app` (newest first)
+5. A Distrobox container with "matlab" in its name
+
+On a machine with a normal install, things usually just work. To set up explicitly,
+run **`pipeforge-cli matlab detect`** once (or click **Detect** in Settings): it
+*actually starts* each candidate until one answers, then saves the winner — this
+matters when a binary exists but can't run, e.g. a container-only install whose
+directory is visible on the host.
 
 ## Install
 

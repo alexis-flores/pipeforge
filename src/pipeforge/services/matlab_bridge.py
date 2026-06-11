@@ -15,8 +15,11 @@ and only retaken on explicit refresh (``force=True``).
 from __future__ import annotations
 
 import contextlib
+import glob
 import hashlib
 import json
+import os
+import shlex
 import shutil
 import subprocess
 from collections.abc import Callable
@@ -26,6 +29,8 @@ from pathlib import Path
 from pipeforge.core.frontend.varinfo import VALUE_CAP, WorkspaceSnapshot
 from pipeforge.paths import config_dir
 
+#: Last-resort fallback (and the example shown in error messages) when nothing
+#: can be auto-detected. Real resolution happens in matlab_candidates().
 DEFAULT_COMMAND = [
     "distrobox",
     "enter",
@@ -33,6 +38,17 @@ DEFAULT_COMMAND = [
     "--",
     "/usr/local/MATLAB/R2026a/bin/matlab",
 ]
+
+#: Conventional install locations, searched newest release first.
+INSTALL_GLOBS = (
+    "/usr/local/MATLAB/R20*/bin/matlab",
+    "/opt/MATLAB/R20*/bin/matlab",
+    "/Applications/MATLAB_R20*.app/bin/matlab",
+)
+
+#: Environment override: a shell-style command, e.g. "matlab" or
+#: "ssh build-box matlab". Beats everything except explicit settings.
+ENV_OVERRIDE = "PIPEFORGE_MATLAB"
 
 #: subprocess budget: container auto-start + MATLAB cold start + script run
 SNAPSHOT_TIMEOUT_S = 180
@@ -42,26 +58,92 @@ class MatlabUnavailable(RuntimeError):
     """MATLAB cannot be reached or the snapshot failed (C2: actionable)."""
 
 
+def _distrobox_matlab_containers() -> list[str]:
+    """Names of distrobox containers that look MATLAB-related (cheap, 2 s)."""
+    if shutil.which("distrobox") is None:
+        return []
+    try:
+        proc = subprocess.run(["distrobox", "list"], capture_output=True, text=True, timeout=2)
+    except (OSError, subprocess.SubprocessError):
+        return []
+    names: list[str] = []
+    for line in proc.stdout.splitlines():
+        parts = [p.strip() for p in line.split("|")]
+        if len(parts) >= 2 and "matlab" in parts[1].lower():
+            names.append(parts[1])
+    return names
+
+
+def matlab_candidates() -> list[tuple[str, list[str]]]:
+    """Ordered (source, command) candidates for locating MATLAB.
+
+    Cheap by design — nothing here starts MATLAB. Order: env override,
+    PATH, conventional install dirs (newest first), distrobox containers.
+    """
+    candidates: list[tuple[str, list[str]]] = []
+    env = os.environ.get(ENV_OVERRIDE, "").strip()
+    if env:
+        with contextlib.suppress(ValueError):
+            parsed = shlex.split(env)
+            if parsed:
+                candidates.append(("env", parsed))
+    if shutil.which("matlab") is not None:
+        candidates.append(("path", ["matlab"]))
+    installs: list[str] = []
+    for pattern in INSTALL_GLOBS:
+        installs.extend(glob.glob(pattern))
+    for exe in sorted(installs, reverse=True):  # newest release first
+        if Path(exe).is_file():
+            candidates.append(("install", [exe]))
+    for name in _distrobox_matlab_containers():
+        # matlab may not be on the container PATH; also try host-visible installs
+        candidates.append(("distrobox", ["distrobox", "enter", name, "--", "matlab"]))
+        for exe in sorted(installs, reverse=True):
+            candidates.append(("distrobox", ["distrobox", "enter", name, "--", exe]))
+    return candidates
+
+
+def _plausible(command: list[str]) -> bool:
+    if not command:
+        return False
+    head = command[0]
+    if "/" in head:
+        return Path(head).is_file()
+    return shutil.which(head) is not None
+
+
+def autodetect_command() -> tuple[str, list[str]]:
+    """First plausible candidate, or the documented default."""
+    for source, command in matlab_candidates():
+        if _plausible(command):
+            return source, command
+    return "default", list(DEFAULT_COMMAND)
+
+
 @dataclass
 class MatlabConfig:
     command: list[str] = field(default_factory=lambda: list(DEFAULT_COMMAND))
     setup: Path | None = None  # per-project workspace setup (.m to run / .mat to load)
+    source: str = "default"  # where the command came from (not persisted)
 
     @classmethod
     def load(cls) -> MatlabConfig:
+        """Explicit settings always win; otherwise auto-detect for this machine."""
         path = config_dir() / "settings.json"
         cfg = cls()
+        data: dict[str, object] = {}
         if path.is_file():
-            try:
+            with contextlib.suppress(OSError, json.JSONDecodeError):
                 data = json.loads(path.read_text(encoding="utf-8"))
-            except (OSError, json.JSONDecodeError):
-                return cfg
-            cmd = data.get("matlabCommand")
-            if isinstance(cmd, list) and all(isinstance(c, str) for c in cmd) and cmd:
-                cfg.command = list(cmd)
-            setup = data.get("matlabSetup")
-            if isinstance(setup, str) and setup:
-                cfg.setup = Path(setup)
+        cmd = data.get("matlabCommand")
+        if isinstance(cmd, list) and all(isinstance(c, str) for c in cmd) and cmd:
+            cfg.command = list(cmd)
+            cfg.source = "settings"
+        else:
+            cfg.source, cfg.command = autodetect_command()
+        setup = data.get("matlabSetup")
+        if isinstance(setup, str) and setup:
+            cfg.setup = Path(setup)
         return cfg
 
     def save(self) -> None:
@@ -106,6 +188,42 @@ def probe(config: MatlabConfig | None = None, timeout: float = SNAPSHOT_TIMEOUT_
             "MATLAB probe failed: " + (proc.stderr or proc.stdout).strip()[-500:]
         )
     return proc.stdout.strip().splitlines()[-1] if proc.stdout.strip() else "unknown"
+
+
+def detect_and_save(
+    log: Callable[[str], None] | None = None,
+    timeout: float = SNAPSHOT_TIMEOUT_S,
+) -> tuple[MatlabConfig, str]:
+    """Find a *working* MATLAB by probing each candidate; persist the winner.
+
+    One-step setup for a fresh machine: walks env/PATH/install/distrobox
+    candidates, runs the real version probe on each, and saves the first
+    command that answers. Returns (config, version).
+    """
+    existing_setup = MatlabConfig.load().setup  # keep the project setup file
+    tried: list[str] = []
+    for source, command in matlab_candidates():
+        if not _plausible(command):
+            continue
+        rendered = " ".join(command)
+        if log:
+            log(f"matlab detect: trying [{source}] {rendered}")
+        cfg = MatlabConfig(command=list(command), setup=existing_setup, source=source)
+        try:
+            version = probe(cfg, timeout=timeout)
+        except MatlabUnavailable as exc:
+            tried.append(f"[{source}] {rendered}: {str(exc).splitlines()[0][:120]}")
+            continue
+        cfg.save()
+        if log:
+            log(f"matlab detect: saved [{source}] {rendered} ({version})")
+        return cfg, version
+    detail = "\n  ".join(tried) if tried else "(no plausible candidates found)"
+    raise MatlabUnavailable(
+        "No working MATLAB found. Tried:\n  "
+        + detail
+        + f"\nInstall MATLAB, set {ENV_OVERRIDE}, or configure the command in Settings."
+    )
 
 
 # ---------------------------------------------------------------------------

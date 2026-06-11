@@ -348,13 +348,26 @@ def _cmd_matlab(args: argparse.Namespace) -> int:
         print(f"worst: max|e| {report.worst_abs_error:.3g}, SQNR {report.worst_sqnr_db:.1f} dB")
         return 0
 
+    if args.matlab_action == "detect":
+        from pipeforge.services.matlab_bridge import detect_and_save
+
+        try:
+            detected, version = detect_and_save(log=lambda s: print(s, file=sys.stderr))
+        except MatlabUnavailable as exc:
+            print(str(exc), file=sys.stderr)
+            return 3
+        print(f"MATLAB found via {detected.source}: {' '.join(detected.command)}")
+        print(f"version: {version}")
+        print("saved to settings — every machine keeps its own.")
+        return 0
+
     if args.matlab_action == "probe":
         try:
             version = probe(config)
         except MatlabUnavailable as exc:
             print(str(exc), file=sys.stderr)
             return 3
-        print(f"MATLAB reachable via {' '.join(config.command)}")
+        print(f"MATLAB reachable via {' '.join(config.command)} (source: {config.source})")
         print(f"version: {version}")
         return 0
 
@@ -510,6 +523,10 @@ def build_parser() -> argparse.ArgumentParser:
     )
     matlab_sub = p_matlab.add_subparsers(dest="matlab_action", metavar="action", required=True)
     matlab_sub.add_parser("probe", help="check MATLAB reachability and version (slow)")
+    matlab_sub.add_parser(
+        "detect",
+        help="find a working MATLAB (env/PATH/installs/distrobox) and save it to settings",
+    )
     p_snap = matlab_sub.add_parser(
         "snapshot", help="run setup + script in MATLAB and capture every variable"
     )

@@ -3,8 +3,6 @@ tool-gated (mirror of the Verilator pattern, §8.2)."""
 
 from __future__ import annotations
 
-import shutil
-import subprocess
 from pathlib import Path
 
 import pytest
@@ -198,18 +196,14 @@ class TestCacheAndConfig:
 
 
 def _matlab_live() -> bool:
-    cfg = mb.MatlabConfig()
-    if shutil.which(cfg.command[0]) is None:
-        return False
-    try:
-        out = subprocess.run(["distrobox", "list"], capture_output=True, text=True, timeout=20)
-        return "matlab-sandbox" in out.stdout
-    except (OSError, subprocess.SubprocessError):
-        return False
+    # portable: whatever this machine's resolution order (settings, env, PATH,
+    # standard installs, distrobox) finds is what the live tests run against
+    cfg = mb.MatlabConfig.load()
+    return cfg.source != "default" and mb.fast_available(cfg)
 
 
 requires_matlab = pytest.mark.skipif(
-    not _matlab_live(), reason="MATLAB container absent — skipped per §8.2"
+    not _matlab_live(), reason="no MATLAB on this machine — skipped per §8.2"
 )
 
 
@@ -254,3 +248,114 @@ def test_live_validate_against_matlab(monkeypatch: pytest.MonkeyPatch) -> None:
     assert targets["y"].stats.max_abs_error == 0.0
     # n = norm(x): quantized sqrt stays within a couple of LSBs of MATLAB
     assert 0.0 < targets["n"].stats.max_abs_error < 2.0**-11
+
+
+class TestPortableDetection:
+    """Auto-detection so a clone on another machine finds its own MATLAB."""
+
+    @staticmethod
+    def _shim(tmp_path: Path, name: str = "matlab", version: str = "9.99 (Rtest)") -> Path:
+        bindir = tmp_path / "bin"
+        bindir.mkdir(exist_ok=True)
+        shim = bindir / name
+        shim.write_text(f'#!/bin/sh\necho "{version}"\n', encoding="utf-8")
+        shim.chmod(0o755)
+        return bindir
+
+    @staticmethod
+    def _isolate(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, path_dirs: str = "") -> None:
+        monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "cfg"))
+        monkeypatch.delenv(mb.ENV_OVERRIDE, raising=False)
+        monkeypatch.setenv("PATH", path_dirs)  # no matlab, no distrobox
+        monkeypatch.setattr(mb, "INSTALL_GLOBS", ())
+
+    def test_env_override_wins(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        self._isolate(monkeypatch, tmp_path)
+        monkeypatch.setenv(mb.ENV_OVERRIDE, "ssh build-box matlab")
+        candidates = mb.matlab_candidates()
+        assert candidates[0] == ("env", ["ssh", "build-box", "matlab"])
+
+    def test_path_matlab_detected(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        bindir = self._shim(tmp_path)
+        self._isolate(monkeypatch, tmp_path, path_dirs=str(bindir))
+        source, command = mb.autodetect_command()
+        assert (source, command) == ("path", ["matlab"])
+
+    def test_install_glob_newest_first(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        self._isolate(monkeypatch, tmp_path)
+        for rel in ("R2024b", "R2026a"):
+            exe = tmp_path / "MATLAB" / rel / "bin" / "matlab"
+            exe.parent.mkdir(parents=True)
+            exe.write_text("#!/bin/sh\n")
+            exe.chmod(0o755)
+        monkeypatch.setattr(
+            mb, "INSTALL_GLOBS", (str(tmp_path / "MATLAB" / "R20*" / "bin" / "matlab"),)
+        )
+        source, command = mb.autodetect_command()
+        assert source == "install"
+        assert command == [str(tmp_path / "MATLAB" / "R2026a" / "bin" / "matlab")]
+
+    def test_fresh_machine_with_normal_matlab_needs_no_config(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # the user's scenario: new computer, matlab on PATH, empty settings
+        bindir = self._shim(tmp_path)
+        self._isolate(monkeypatch, tmp_path, path_dirs=str(bindir))
+        cfg = mb.MatlabConfig.load()
+        assert cfg.command == ["matlab"]
+        assert cfg.source == "path"
+
+    def test_explicit_settings_beat_autodetection(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        bindir = self._shim(tmp_path)
+        self._isolate(monkeypatch, tmp_path, path_dirs=str(bindir))
+        mb.MatlabConfig(command=["my", "wrapper"]).save()
+        cfg = mb.MatlabConfig.load()
+        assert cfg.command == ["my", "wrapper"]
+        assert cfg.source == "settings"
+
+    def test_nothing_found_falls_back_to_documented_default(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        self._isolate(monkeypatch, tmp_path)
+        source, command = mb.autodetect_command()
+        assert source == "default"
+        assert command == mb.DEFAULT_COMMAND
+
+    def test_detect_and_save_probes_and_persists(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # a real probe against a shim that answers like MATLAB -batch
+        bindir = self._shim(tmp_path, version="10.0 (R2027a)")
+        self._isolate(monkeypatch, tmp_path, path_dirs=f"{bindir}:/usr/bin:/bin")
+        mb.MatlabConfig(command=[], setup=tmp_path / "s.mat").save()  # keep setup
+        cfg, version = mb.detect_and_save(timeout=10)
+        assert version == "10.0 (R2027a)"
+        assert cfg.source == "path"
+        assert cfg.setup == tmp_path / "s.mat"  # project setup preserved
+        assert mb.MatlabConfig.load().command == ["matlab"]  # persisted
+
+    def test_detect_and_save_skips_broken_candidates(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        broken = tmp_path / "broken" / "bin" / "matlab"
+        broken.parent.mkdir(parents=True)
+        broken.write_text("#!/bin/sh\nexit 7\n")
+        broken.chmod(0o755)
+        good_bin = self._shim(tmp_path, version="ok 1.0")
+        self._isolate(monkeypatch, tmp_path, path_dirs=f"{good_bin}:/usr/bin:/bin")
+        # broken install candidate ranks after the env override? no — env first:
+        monkeypatch.setenv(mb.ENV_OVERRIDE, str(broken))
+        cfg, version = mb.detect_and_save(timeout=10)
+        assert version == "ok 1.0"  # fell through the broken env candidate
+        assert cfg.source == "path"
+
+    def test_detect_and_save_reports_everything_tried(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        self._isolate(monkeypatch, tmp_path, path_dirs="/usr/bin:/bin")
+        with pytest.raises(mb.MatlabUnavailable, match="No working MATLAB"):
+            mb.detect_and_save(timeout=5)

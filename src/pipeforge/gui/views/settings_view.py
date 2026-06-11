@@ -60,7 +60,18 @@ class SettingsView(QWidget):
         # MATLAB bridge: command template + per-project workspace setup
         matlab_cfg = MatlabConfig.load()
         self.matlab_command_edit = QLineEdit(shlex.join(matlab_cfg.command))
+        self.matlab_command_edit.setPlaceholderText(
+            f"auto-detected ({matlab_cfg.source}); edit to override"
+        )
         self.matlab_command_edit.editingFinished.connect(self._save_matlab)
+        self.matlab_detect_btn = QPushButton("Detect")
+        self.matlab_detect_btn.setToolTip(
+            "Try env/PATH/standard installs/distrobox until one answers, then save it"
+        )
+        self.matlab_detect_btn.clicked.connect(self._detect_matlab)
+        command_row = QHBoxLayout()
+        command_row.addWidget(self.matlab_command_edit, 1)
+        command_row.addWidget(self.matlab_detect_btn)
         self.matlab_setup_edit = QLineEdit(str(matlab_cfg.setup) if matlab_cfg.setup else "")
         self.matlab_setup_edit.setPlaceholderText("setup .m to run or .mat to load (optional)")
         self.matlab_setup_edit.editingFinished.connect(self._save_matlab)
@@ -69,7 +80,7 @@ class SettingsView(QWidget):
         setup_row = QHBoxLayout()
         setup_row.addWidget(self.matlab_setup_edit, 1)
         setup_row.addWidget(browse)
-        form.addRow("MATLAB command", self.matlab_command_edit)
+        form.addRow("MATLAB command", command_row)
         form.addRow("MATLAB setup", setup_row)
 
         tools_title = QLabel("External tools")
@@ -129,6 +140,53 @@ class SettingsView(QWidget):
         setup_text = self.matlab_setup_edit.text().strip()
         cfg = MatlabConfig(command=command, setup=Path(setup_text) if setup_text else None)
         cfg.save()
+
+    def _detect_matlab(self) -> None:
+        """Probe candidates off the GUI thread (UI-3); fill + save on success."""
+        from PyQt6.QtCore import QObject, QRunnable, QThreadPool, pyqtSignal
+
+        class _Signals(QObject):
+            found = pyqtSignal(object, str)  # MatlabConfig, version
+            failed = pyqtSignal(str)
+
+        class _DetectJob(QRunnable):
+            def __init__(self) -> None:
+                super().__init__()
+                self.signals = _Signals()
+
+            def run(self) -> None:
+                from pipeforge.services.matlab_bridge import (
+                    MatlabUnavailable,
+                    detect_and_save,
+                )
+
+                try:
+                    cfg, version = detect_and_save()
+                    self.signals.found.emit(cfg, version)
+                except MatlabUnavailable as exc:
+                    self.signals.failed.emit(str(exc))
+
+        self.matlab_detect_btn.setEnabled(False)
+        self.matlab_detect_btn.setText("Detecting…")
+        job = _DetectJob()
+        job.signals.found.connect(self._on_detected)
+        job.signals.failed.connect(self._on_detect_failed)
+        QThreadPool.globalInstance().start(job)
+
+    def _on_detected(self, cfg: object, version: str) -> None:
+        self.matlab_detect_btn.setEnabled(True)
+        self.matlab_detect_btn.setText("Detect")
+        if isinstance(cfg, MatlabConfig):
+            self.matlab_command_edit.setText(shlex.join(cfg.command))
+            self._ws.logMessage.emit(
+                f"matlab: detected via {cfg.source} — {version} (saved to settings)"
+            )
+
+    def _on_detect_failed(self, message: str) -> None:
+        self.matlab_detect_btn.setEnabled(True)
+        self.matlab_detect_btn.setText("Detect")
+        self._ws.problem.emit(message.splitlines()[0])
+        self._ws.logMessage.emit(message)
 
     def _browse_setup(self) -> None:
         fname, _ = QFileDialog.getOpenFileName(
