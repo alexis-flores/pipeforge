@@ -13,3 +13,8 @@ dist/
 .hypothesis/
 *.vcd
 sim_build/
+
+# local-only files (never publish)
+.claude/
+full-session-backup.md
+*.bundle
