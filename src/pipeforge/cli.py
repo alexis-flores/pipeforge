@@ -26,7 +26,8 @@ def _cmd_audit(args: argparse.Namespace) -> int:
         print(f"error: {exc}", file=sys.stderr)
         return 2
     cm = CostModel(args.width, args.scale)
-    audit = audit_source(src, path.name, cm)
+    snapshot = _load_snapshot_arg(getattr(args, "snapshot", None))
+    audit = audit_source(src, path.name, cm, snapshot=snapshot)
     print(render_json(audit) if args.json else render_text(audit), end="")
     return 0
 
@@ -362,6 +363,12 @@ def build_parser() -> argparse.ArgumentParser:
     p_audit.add_argument("file", help="MATLAB script (.m)")
     _add_fixedp_args(p_audit)
     p_audit.add_argument("--json", action="store_true", help="emit JSON instead of text")
+    p_audit.add_argument(
+        "--snapshot",
+        metavar="JSON",
+        help="MATLAB workspace snapshot (from 'matlab snapshot -o'): enables "
+        "shape-aware costing and fi FORMAT findings",
+    )
     p_audit.set_defaults(func=_cmd_audit)
 
     p_lint = sub.add_parser(

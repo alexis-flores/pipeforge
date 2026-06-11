@@ -56,10 +56,15 @@ class Audit:
         return chain
 
 
-def audit_source(src: str, filename: str, cm: CostModel) -> Audit:
-    """Audit MATLAB source text against the nkMatlib cost model."""
+def audit_source(src: str, filename: str, cm: CostModel, snapshot: object | None = None) -> Audit:
+    """Audit MATLAB source text against the nkMatlib cost model.
+
+    With a live MATLAB snapshot the DAG becomes shape-aware and fi-format
+    mismatches surface as FORMAT findings; without one, output is
+    bit-identical to the static analysis (pinned by golden files).
+    """
     assigns, skipped = parse_program(src)
-    builder, problems = build_dag(assigns, cm)
+    builder, problems = build_dag(assigns, cm, snapshot=snapshot)
     skipped = sorted([*skipped, *problems], key=lambda s: s.line)
     findings = find_findings(builder, cm)
     return Audit(filename, cm, builder.dag, findings, skipped)

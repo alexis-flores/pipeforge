@@ -48,6 +48,7 @@ class Node:
     label: str  # canonical expression text
     signal: str = ""  # lhs name when this node is a statement root
     span: Span | None = None
+    shape: tuple[int, int] = (1, 1)  # (rows, cols); known only with a snapshot
 
 
 @dataclass
@@ -101,10 +102,21 @@ class Dag:
 
 
 class DagBuilder:
-    """Builds the DAG from parsed assignments with def-use links (FE-2)."""
+    """Builds the DAG from parsed assignments with def-use links (FE-2).
 
-    def __init__(self, cm: CostModel) -> None:
+    With a live MATLAB :class:`WorkspaceSnapshot`, leaf shapes come from the
+    real workspace and `*`/`/` map shape-aware (matmul/matscale/matunscale);
+    without one, every shape is scalar and behavior is bit-identical to the
+    static analysis (golden files pin it).
+    """
+
+    def __init__(self, cm: CostModel, snapshot: object | None = None) -> None:
+        from pipeforge.core.frontend.varinfo import WorkspaceSnapshot
+
         self.cm = cm
+        self.snapshot: WorkspaceSnapshot | None = (
+            snapshot if isinstance(snapshot, WorkspaceSnapshot) else None
+        )
         self.dag = Dag()
         self.env: dict[str, str] = {}  # var -> defining node id
         self.counter = 0
@@ -122,15 +134,33 @@ class DagBuilder:
         cached = self._leaf_cache.get(key)
         if cached is not None:
             return self.dag.nodes[cached]
-        node = Node(self.new_id(), module, module, 0, 0, [], self.cur_line, label, span=span)
+        shape = (1, 1)
+        if module == "input" and self.snapshot is not None:
+            info = self.snapshot.get(label)
+            if info is not None:
+                shape = info.shape2d
+        node = Node(
+            self.new_id(), module, module, 0, 0, [], self.cur_line, label, span=span, shape=shape
+        )
         self._leaf_cache[key] = node.nid
         return self.dag.add(node)
 
     def op_node(
-        self, module: str, op: str, args: list[Node], label: str, span: Span | None
+        self,
+        module: str,
+        op: str,
+        args: list[Node],
+        label: str,
+        span: Span | None,
+        shape: tuple[int, int] | None = None,
     ) -> Node:
         lat = self.cm.latency_of(module)
         ready = max((a.ready for a in args), default=0) + lat
+        if shape is None:  # elementwise default: broadcast
+            shape = (
+                max((a.shape[0] for a in args), default=1),
+                max((a.shape[1] for a in args), default=1),
+            )
         node = Node(
             self.new_id(),
             module,
@@ -141,6 +171,7 @@ class DagBuilder:
             self.cur_line,
             label,
             span=span,
+            shape=shape,
         )
         return self.dag.add(node)
 
@@ -177,7 +208,10 @@ class DagBuilder:
 
             module = KNOWN_FUNCS[e.name]
             args = [self.build_expr(a) for a in e.args]
-            return self.op_node(module, e.name, args, canon(e), e.span)
+            shape: tuple[int, int] | None = None
+            if module in ("rootsqr", "sumsqr", "matmul", "vecnormrows", "vecnormcols"):
+                shape = (1, 1)  # reductions to a scalar
+            return self.op_node(module, e.name, args, canon(e), e.span, shape=shape)
         if isinstance(e, Mat):
             elems = [self.build_expr(x) for x in e.elems]
             return self.op_node("", "concat", elems, canon(e), e.span)
@@ -186,7 +220,14 @@ class DagBuilder:
             return self.op_node("elem_neg", "neg", [operand], canon(e), e.span)
         if isinstance(e, Trans):
             operand = self.build_expr(e.operand)
-            return self.op_node("transp", "transpose", [operand], canon(e), e.span)
+            return self.op_node(
+                "transp",
+                "transpose",
+                [operand],
+                canon(e),
+                e.span,
+                shape=(operand.shape[1], operand.shape[0]),
+            )
         if isinstance(e, Bin):
             return self.build_bin(e)
         raise TypeError(f"unknown expr: {e!r}")
@@ -207,6 +248,18 @@ class DagBuilder:
         if op in ("*", ".*"):
             left = self.build_expr(e.left)
             right = self.build_expr(e.right)
+            ls, rs = left.shape, right.shape
+            if op == "*" and self.snapshot is not None:
+                l_scalar = ls == (1, 1)
+                r_scalar = rs == (1, 1)
+                if not l_scalar and not r_scalar:
+                    if ls[1] == rs[0]:  # true matrix product
+                        return self.op_node(
+                            "matmul", op, [left, right], canon(e), e.span, shape=(ls[0], rs[1])
+                        )
+                elif l_scalar != r_scalar:  # scalar times matrix
+                    mat = rs if l_scalar else ls
+                    return self.op_node("matscale", op, [left, right], canon(e), e.span, shape=mat)
             return self.op_node("elem_smul", op, [left, right], canon(e), e.span)
         if op in ("/", "./", "\\", ".\\"):
             left = self.build_expr(e.left)
@@ -218,7 +271,15 @@ class DagBuilder:
             else:
                 dividend_ast = e.left
                 divisor_ast = e.right
-            node = self.op_node("elem_sdiv", "/", [left, right], canon(e), e.span)
+            module = "elem_sdiv"
+            if (
+                op == "/"
+                and self.snapshot is not None
+                and left.shape != (1, 1)
+                and right.shape == (1, 1)
+            ):
+                module = "matunscale"  # matrix / scalar
+            node = self.op_node(module, "/", [left, right], canon(e), e.span, shape=left.shape)
             self.div_nodes.append((node, dividend_ast, divisor_ast))
             return node
         raise MatlabSyntaxError(f"unsupported operator {op!r}", e.span.line)
@@ -291,9 +352,11 @@ class DagBuilder:
         )
 
 
-def build_dag(assigns: list[Assign], cm: CostModel) -> tuple[DagBuilder, list[Skipped]]:
+def build_dag(
+    assigns: list[Assign], cm: CostModel, snapshot: object | None = None
+) -> tuple[DagBuilder, list[Skipped]]:
     """Build the DAG for a parsed program, recording per-statement problems (FE-3)."""
-    builder = DagBuilder(cm)
+    builder = DagBuilder(cm, snapshot=snapshot)
     problems: list[Skipped] = []
     for a in assigns:
         try:

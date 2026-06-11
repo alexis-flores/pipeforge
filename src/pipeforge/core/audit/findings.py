@@ -187,6 +187,34 @@ def _fuse(builder: DagBuilder, cm: CostModel) -> list[Finding]:
     return findings
 
 
+def _format(builder: DagBuilder, cm: CostModel) -> list[Finding]:
+    """FORMAT (MATLAB bridge): fi variables whose numerictype differs from the
+    workspace WIDTH/SCALE. Only fires when a snapshot is attached."""
+    if builder.snapshot is None:
+        return []
+    findings: list[Finding] = []
+    inputs = {n.label: n for n in builder.dag.inputs()}
+    for name, fi in sorted(builder.snapshot.fi_formats().items()):
+        if name not in inputs:
+            continue  # fi variable not used by this script
+        if (fi.width, fi.scale) == (cm.width, cm.scale):
+            continue
+        node = inputs[name]
+        findings.append(
+            Finding(
+                "FORMAT",
+                node.line,
+                0,
+                f"'{name}' is fi {fi.width}/{fi.scale} in MATLAB but the workspace "
+                f"is {cm.width}/{cm.scale}",
+                f"insert elem_snorm at the '{name}' input, or adopt {fi.width}/"
+                f"{fi.scale} as the workspace format so bits match end to end",
+                node=node.nid,
+            )
+        )
+    return findings
+
+
 def _feedback(builder: DagBuilder, cm: CostModel) -> list[Finding]:
     return [
         Finding(
@@ -204,7 +232,7 @@ def _feedback(builder: DagBuilder, cm: CostModel) -> list[Finding]:
 def find_findings(builder: DagBuilder, cm: CostModel) -> list[Finding]:
     """Run every finding rule over a built DAG; result is line-sorted."""
     findings: list[Finding] = []
-    for rule in (_recip, _cdiv, _serdiv, _pow, _cse, _fuse, _feedback):
+    for rule in (_recip, _cdiv, _serdiv, _pow, _cse, _fuse, _feedback, _format):
         findings.extend(rule(builder, cm))
     findings.sort(key=lambda f: (f.line, f.tag))
     return findings
