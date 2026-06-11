@@ -285,6 +285,64 @@ def _cmd_dse(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_matlab(args: argparse.Namespace) -> int:
+    from pipeforge.services.matlab_bridge import (
+        MatlabConfig,
+        MatlabUnavailable,
+        probe,
+        take_snapshot,
+    )
+
+    config = MatlabConfig.load()
+    if args.matlab_action == "probe":
+        try:
+            version = probe(config)
+        except MatlabUnavailable as exc:
+            print(str(exc), file=sys.stderr)
+            return 3
+        print(f"MATLAB reachable via {' '.join(config.command)}")
+        print(f"version: {version}")
+        return 0
+
+    # snapshot
+    try:
+        snapshot = take_snapshot(
+            Path(args.file),
+            setup=Path(args.setup) if args.setup else None,
+            config=config,
+            force=args.force,
+            log=lambda line: print(line, file=sys.stderr),
+        )
+    except MatlabUnavailable as exc:
+        print(str(exc), file=sys.stderr)
+        return 3
+    if args.output:
+        Path(args.output).write_text(snapshot.to_json(), encoding="utf-8")
+        print(f"wrote {args.output}")
+    else:
+        if snapshot.error:
+            print(f"script error (partial snapshot): {snapshot.error}")
+        print(f"snapshot of {snapshot.script} — MATLAB {snapshot.matlab_version}")
+        for name, v in sorted(snapshot.variables.items()):
+            fi = f" fi {v.fi.width}/{v.fi.scale}" if v.fi else ""
+            rng = (
+                f" range [{v.vmin:.6g}, {v.vmax:.6g}]"
+                if v.vmin is not None and v.vmax is not None
+                else ""
+            )
+            size = "x".join(str(d) for d in v.size)
+            print(f"  {name:<20} {v.class_name:<14} {size:<8}{fi}{rng}")
+    return 0
+
+
+def _load_snapshot_arg(path_str: str | None):  # -> WorkspaceSnapshot | None
+    if not path_str:
+        return None
+    from pipeforge.core.frontend.varinfo import WorkspaceSnapshot
+
+    return WorkspaceSnapshot.from_json(Path(path_str).read_text(encoding="utf-8"))
+
+
 def _add_fixedp_args(p: argparse.ArgumentParser) -> None:
     p.add_argument("-w", "--width", type=int, default=16, help="fixedp WIDTH (default 16)")
     p.add_argument("-s", "--scale", type=int, default=12, help="fixedp SCALE (default 12)")
@@ -381,6 +439,22 @@ def build_parser() -> argparse.ArgumentParser:
     p_dse.add_argument("--csv", help="export all points as CSV")
     p_dse.add_argument("--json", action="store_true", help="emit JSON instead of text")
     p_dse.set_defaults(func=_cmd_dse)
+
+    p_matlab = sub.add_parser(
+        "matlab", help="bridge to a live MATLAB session (snapshot workspace variables)"
+    )
+    matlab_sub = p_matlab.add_subparsers(dest="matlab_action", metavar="action", required=True)
+    matlab_sub.add_parser("probe", help="check MATLAB reachability and version (slow)")
+    p_snap = matlab_sub.add_parser(
+        "snapshot", help="run setup + script in MATLAB and capture every variable"
+    )
+    p_snap.add_argument("file", help="MATLAB script (.m)")
+    p_snap.add_argument("--setup", help="workspace setup: a .m to run or a .mat to load")
+    p_snap.add_argument("-o", "--output", help="write snapshot JSON here")
+    p_snap.add_argument(
+        "--force", action="store_true", help="retake even if a cached snapshot exists"
+    )
+    p_matlab.set_defaults(func=_cmd_matlab)
 
     return parser
 

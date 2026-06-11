@@ -77,6 +77,22 @@ def _probe_module(name: str, feature: str, hint: str) -> ToolStatus:
     return ToolStatus(name, False, "", feature, hint)
 
 
+def _probe_matlab() -> ToolStatus:
+    # Fast check only — actually starting MATLAB takes seconds and happens
+    # exclusively on explicit refresh (services.matlab_bridge).
+    from pipeforge.services.matlab_bridge import MatlabConfig, fast_available
+
+    cfg = MatlabConfig.load()
+    available = fast_available(cfg)
+    return ToolStatus(
+        "matlab",
+        available,
+        cfg.command[0] if available else "",
+        "live workspace snapshots (MATLAB bridge)",
+        "configure the MATLAB command in Settings (default: matlab-sandbox distrobox)",
+    )
+
+
 def detect_tools() -> dict[str, ToolStatus]:
     """Probe every optional external tool (Appendix B)."""
     out: dict[str, ToolStatus] = {}
@@ -84,6 +100,7 @@ def detect_tools() -> dict[str, ToolStatus]:
         out[name] = _probe_exe(name, cmd, feature, hint)
     for name, feature, hint in _PY_PROBES:
         out[name] = _probe_module(name, feature, hint)
+    out["matlab"] = _probe_matlab()
     return out
 
 
