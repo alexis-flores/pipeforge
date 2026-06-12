@@ -51,8 +51,8 @@
     "id": "07_matlab",
     "title": "MATLAB bridge: live types, .mat browsing, validation",
     "files": ["matlab/model.m", "matlab/setup_model.m", "matlab/params.mat"],
-    "description": "A model script + setup script + a real .mat parameter file. Snapshot captures every variable (struct fields dotted); validate compares the golden model against MATLAB's own values; the .mat browses alone with no script.",
+    "description": "A model script + setup script + a real .mat parameter file. Snapshot captures every variable (struct fields dotted); validate compares the golden model against MATLAB's own values; the .mat browses alone with no script — it packs nested structs, int/logical/single/complex classes, and a 5000-sample signal to exercise every Workspace column.",
     "command": "pipeforge-cli matlab snapshot {dir}/matlab/params.mat",
-    "gui": "Open params.mat, press Ctrl+Shift+M, then browse the Workspace view."
+    "gui": "Open params.mat, press Ctrl+Shift+M, then browse the Workspace view (filter, sort, dotted cfg.* fields)."
   }
 ]
