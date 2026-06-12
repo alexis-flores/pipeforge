@@ -349,7 +349,7 @@ class MainWindow(QMainWindow):
 
     def _open_dialog(self) -> None:
         fname, _ = QFileDialog.getOpenFileName(
-            self, "Open MATLAB or SystemVerilog file", "", "MATLAB/SV (*.m *.sv)"
+            self, "Open MATLAB, SystemVerilog, or .mat file", "", "MATLAB/SV (*.m *.sv *.mat)"
         )
         if fname:
             self.open_path(Path(fname))
