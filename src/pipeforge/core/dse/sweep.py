@@ -11,6 +11,7 @@ import csv
 import hashlib
 import json
 import math
+import multiprocessing
 from collections.abc import Callable
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from dataclasses import asdict, dataclass
@@ -111,7 +112,10 @@ def run_sweep(
     results: list[SweepPoint] = []
     total = len(todo)
     done = 0
-    with ProcessPoolExecutor(max_workers=max_workers) as pool:
+    # spawn, not fork: the GUI host process is multi-threaded (Qt), where
+    # fork() is deprecated on 3.12+ and can deadlock the children
+    ctx = multiprocessing.get_context("spawn")
+    with ProcessPoolExecutor(max_workers=max_workers, mp_context=ctx) as pool:
         futures = {
             pool.submit(_evaluate_point, src, filename, w, s, config.vectors, config.seed): (w, s)
             for (w, s) in todo
