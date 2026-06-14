@@ -58,11 +58,17 @@ class _Sig:
         return f"{self.base}_{self.cycle}"
 
 
+def probe_port(nid: str) -> str:
+    """Conventional probe output-port base name for a DAG node (CS-7)."""
+    return f"probe_{nid}"
+
+
 class _Emitter:
-    def __init__(self, audit: Audit, module_name: str) -> None:
+    def __init__(self, audit: Audit, module_name: str, probes: list[str] | None = None) -> None:
         self.audit = audit
         self.dag: Dag = audit.dag
         self.module_name = module_name
+        self.probes = probes or []
         self.sig: dict[str, _Sig] = {}  # node id -> output signal
         self.const_expr: dict[str, str] = {}  # node id -> literal expression
         self.used_names: set[str] = set()
@@ -143,6 +149,14 @@ class _Emitter:
             sig = self.sig[node.nid]
             sig = self._pipe(sig, total)  # align every output to the final stage
             out_sigs.append((node.signal, sig))
+        # probe ports: expose selected internal signals, aligned to the final
+        # stage so they sample valid-gated exactly like primary outputs (CS-7)
+        probe_sigs: list[tuple[str, _Sig]] = []
+        for nid in self.probes:
+            if nid not in self.sig:
+                continue
+            probe_sigs.append((probe_port(nid), self._pipe(self.sig[nid], total)))
+
         valid_sig = _Sig("valid", total)
         if total > 0:
             self.body.append(
@@ -156,9 +170,13 @@ class _Emitter:
         ]
         for name, sig in out_sigs:
             assigns.append(f"assign {name}_N = {sig.full};")
+        for name, sig in probe_sigs:
+            assigns.append(f"assign {name}_N = {sig.full};")
 
         in_ports = "\n".join(f"  input [g.WIDTH-1:0] {port_name(n.label)}_0," for n in inputs)
-        out_ports = ",\n".join(f"  output [g.WIDTH-1:0] {n.signal}_N" for n in outputs)
+        out_port_lines = [f"  output [g.WIDTH-1:0] {n.signal}_N" for n in outputs]
+        out_port_lines += [f"  output [g.WIDTH-1:0] {name}_N" for name, _ in probe_sigs]
+        out_ports = ",\n".join(out_port_lines)
         decls = "\n".join(self.decls)
         body = "\n".join(self.body)
         cm = self.audit.cm
@@ -242,6 +260,10 @@ endmodule
         self.sig[node.nid] = out
 
 
-def generate_sv(audit: Audit, module_name: str) -> str:
-    """Emit a complete nkMatlib module from an audited DAG (CG-1, CG-4)."""
-    return _Emitter(audit, module_name).emit()
+def generate_sv(audit: Audit, module_name: str, probes: list[str] | None = None) -> str:
+    """Emit a complete nkMatlib module from an audited DAG (CG-1, CG-4).
+
+    `probes` exposes the named DAG nodes' internal signals as extra valid-gated
+    output ports for intermediate capture (CS-7).
+    """
+    return _Emitter(audit, module_name, probes=probes).emit()

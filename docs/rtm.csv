@@ -50,6 +50,8 @@ BI-1,tests/unit/test_bisect.py::test_corrupted_stage_localized,passed
 BI-1,tests/unit/test_bisect.py::test_unobserved_intermediates_tolerated,passed
 BI-2,tests/unit/test_bisect.py::test_delay_skew_classified_not_wrong_math,passed
 BI-3,tests/gui/test_polish.py::test_timeline_renders_bisection_states,passed
+BI-4,tests/integration/test_bisect_e2e.py::test_delay_skew_localized_end_to_end,passed
+BI-4,tests/integration/test_bisect_e2e.py::test_wrong_math_localized_end_to_end,passed
 C1,tests/unit/test_architecture.py::test_core_has_no_qt_imports,passed
 C4,tests/unit/test_architecture.py::test_no_hardcoded_latencies_outside_costmodel,passed
 CG-1,tests/unit/test_codegen.py::test_outputs_aligned_to_final_stage,passed
@@ -81,6 +83,12 @@ CS-6,tests/integration/test_cosim_selftest.py::test_selftest_passes_under_gapped
 CS-6,tests/unit/test_stimulus_cadence.py::test_continuous_is_unbroken,passed
 CS-6,tests/unit/test_stimulus_cadence.py::test_gapped_valid_cadence,passed
 CS-6,tests/unit/test_stimulus_cadence.py::test_single_cycle_valids,passed
+CS-7,tests/integration/test_cosim_probe.py::test_observations_captured_from_probes,passed
+CS-7,tests/unit/test_codegen_probe.py::test_no_probes_is_unchanged,passed
+CS-7,tests/unit/test_codegen_probe.py::test_probe_wrapper_exposes_named_signals,passed
+CS-8,tests/unit/test_cosim_trace.py::test_active_capture_backend_reported,passed
+CS-8,tests/unit/test_cosim_trace.py::test_fst_signal_map_by_convention,passed
+CS-8,tests/unit/test_cosim_trace.py::test_trace_streams_match_golden_shape,passed
 DSE-1,tests/unit/test_dse.py::test_sweep_cancellation,passed
 DSE-1,tests/unit/test_dse.py::test_sweep_evaluates_grid_with_progress,passed
 DSE-2,tests/gui/test_dse_view.py::test_adopt_updates_workspace_format,passed
@@ -234,3 +242,6 @@ WS-3,tests/unit/test_reconcile.py::test_exact_mode_quantized_bit_compare,passed
 WS-3,tests/unit/test_reconcile.py::test_missing_extra_shape_mismatch_reported,passed
 WS-3,tests/unit/test_reconcile.py::test_tolerance_mode_decimal_and_lsb,passed
 WS-4,tests/unit/test_reconcile.py::test_hand_rounding_changes_quantized_code_flagged,passed
+WS-5,tests/integration/test_vector_oracle.py::test_fixedpoint_reference_allows_bitexact_mode,passed
+WS-5,tests/integration/test_vector_oracle.py::test_float_reference_reports_within_precision_not_bitexact,passed
+WS-5,tests/integration/test_vector_oracle.py::test_io_vectors_drive_cosim_stimulus,passed

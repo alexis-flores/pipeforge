@@ -17,6 +17,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from pipeforge.core.audit.engine import Audit
+from pipeforge.core.bisect.engine import BisectReport, Observations, bisect
+from pipeforge.core.codegen.emitter import probe_port
 from pipeforge.core.cosim.harness import write_harness
 from pipeforge.core.cosim.stimulus import Vector, generate_stimulus
 from pipeforge.core.fxp.evaluator import error_stats, evaluate_float
@@ -50,6 +52,9 @@ class CosimResult:
     latency_observed: int = -1
     log: str = ""
     work_dir: str = ""
+    capture_backend: str = ""  # 'probe' | 'trace' | '' (CS-7/CS-8)
+    observations: Observations = field(default_factory=dict)  # node id -> streams
+    bisect_report: BisectReport | None = None  # populated on failure (BI-4)
 
     def to_payload(self) -> dict[str, object]:
         return {
@@ -144,13 +149,25 @@ def run_cosim(
     include_dirs: list[Path] | None = None,
     vector_count: int = 256,
     cadence: str = "continuous",
+    vectors: list[Vector] | None = None,
+    probes: list[str] | None = None,
+    bisect_on_failure: bool = False,
 ) -> CosimResult:
-    """Build with Verilator via the cocotb runner and compare (CS-1c, CS-3, CS-6)."""
+    """Build with Verilator via the cocotb runner and compare (CS-1c, CS-3, CS-6).
+
+    `vectors` overrides synthetic stimulus with ground-truth inputs (WS-5).
+    `probes` (DAG node ids) are captured from the DUT's probe ports into the
+    result's Observations (CS-7); with `bisect_on_failure`, a failing run is
+    localized automatically (BI-4).
+    """
     check_tools()
     fmt = FxFormat(audit.cm.width, audit.cm.scale)
     inputs = [n.label for n in audit.dag.inputs()]
-    vectors = generate_stimulus(inputs, fmt, count=vector_count)
-    spec = write_harness(audit, dut_module, vectors, work_dir, cadence=cadence)
+    if vectors is None:
+        vectors = generate_stimulus(inputs, fmt, count=vector_count)
+    probe_nids = probes or []
+    probe_bases = [probe_port(nid) for nid in probe_nids]
+    spec = write_harness(audit, dut_module, vectors, work_dir, cadence=cadence, probes=probe_bases)
 
     runner_script = work_dir / "run_cocotb.py"
     # absolute paths: the cocotb runner executes from inside the work dir,
@@ -198,11 +215,21 @@ runner.test(hdl_toplevel="tb_wrapper", test_module="tb_cosim")
         return result
     actual_doc = json.loads(actual_path.read_text(encoding="utf-8"))
     expected_doc = json.loads((work_dir / "expected.json").read_text(encoding="utf-8"))
-    result.outputs = compare_streams(
-        audit, vectors, expected_doc["outputs"], actual_doc["outputs"], fmt
-    )
+    actual_outputs = actual_doc["outputs"]
+    result.outputs = compare_streams(audit, vectors, expected_doc["outputs"], actual_outputs, fmt)
     result.passed = all(o.passed for o in result.outputs)
     first_valid = actual_doc.get("first_valid_cycle")
     if isinstance(first_valid, int):
         result.latency_observed = first_valid - 1  # cycle counter starts after feed
+
+    # CS-7: reconstruct per-node Observations from the captured probe ports
+    if probe_nids:
+        result.capture_backend = "probe"
+        result.observations = {
+            nid: [[raw] for raw in actual_outputs.get(probe_port(nid), [])] for nid in probe_nids
+        }
+    # BI-4: on failure, localize the first divergent stage automatically
+    if not result.passed and bisect_on_failure and result.observations:
+        stimulus = [{k: v for k, v in vec.items()} for vec in vectors]
+        result.bisect_report = bisect(audit.dag, stimulus, result.observations, fmt)
     return result
