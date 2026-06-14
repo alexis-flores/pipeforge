@@ -22,6 +22,8 @@ import numpy as np
 import scipy.io as sio
 from scipy.io.matlab import mat_struct
 
+from pipeforge.core.ranges.interval import Interval
+
 
 @dataclass(frozen=True)
 class WsField:
@@ -186,3 +188,14 @@ def load_mat(path: str | Path) -> WorkspaceTree:
     if h5py.is_hdf5(str(p)):
         return WorkspaceTree(str(p), "v7.3", _load_v73(p))
     return WorkspaceTree(str(p), "v5", _load_v5(p))
+
+
+def constant_ranges(tree: WorkspaceTree) -> dict[str, Interval]:
+    """Workspace fields as range-analysis inputs: scalars become point ranges,
+    arrays their value hull (WS-6). Char/empty fields are skipped."""
+    out: dict[str, Interval] = {}
+    for path, fld in tree.fields.items():
+        if not fld.values:
+            continue
+        out[path] = Interval(min(fld.values), max(fld.values))
+    return out

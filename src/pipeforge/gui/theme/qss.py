@@ -27,11 +27,13 @@ QMainWindow, QDialog {{ background: {t["bg"]}; }}
 QWidget#view {{ background: {t["bg"]}; }}
 QWidget#sidebar {{ background: {t["surface"]}; border-right: 1px solid {t["border"]}; }}
 QToolButton {{
-    background: transparent; border: none; border-radius: 6px;
-    padding: 8px; color: {t["textSecondary"]};
+    background: transparent; border: none; border-left: 2px solid transparent;
+    border-radius: 6px; padding: 8px; color: {t["textSecondary"]};
 }}
 QToolButton:hover {{ background: {t["surfaceElevated"]}; color: {t["textPrimary"]}; }}
 QToolButton:checked {{ background: {t["surfaceElevated"]}; color: {t["accent"]}; }}
+/* UI-8: the active sidebar item carries an unmistakable accent edge bar */
+QToolButton[active="true"] {{ border-left: 2px solid {t["accent"]}; color: {t["accent"]}; }}
 QToolButton:focus {{ outline: none; border: 1px solid {t["focusRing"]}; }}
 QPushButton {{
     background: {t["surfaceElevated"]}; border: 1px solid {t["border"]};
@@ -72,9 +74,12 @@ QPlainTextEdit, QTextEdit {{
     border: 1px solid {t["border"]}; border-radius: 8px;
     selection-background-color: {t["selection"]};
 }}
-QLabel#viewTitle {{ font-size: {FONT_DISPLAY}px; font-weight: 600; }}
+/* TH-7 type hierarchy: large/light title > medium section > body > mono data,
+   with the italic title treatment removed for a clean sans chrome. */
+QLabel#viewTitle {{ font-size: {FONT_DISPLAY}px; font-weight: 300; font-style: normal; }}
 QLabel#sectionTitle {{ font-size: {FONT_TITLE}px; font-weight: 600; }}
-QLabel#muted {{ color: {t["textSecondary"]}; }}
+QLabel#muted {{ color: {t["textSecondary"]}; font-size: {FONT_SMALL}px; }}
+QLabel#dataValue {{ font-family: {MONO_FONTS}; font-size: {FONT_BODY}px; }}
 QLabel#chip {{
     background: {t["surfaceElevated"]}; border: 1px solid {t["border"]};
     border-radius: 9px; padding: 2px 10px; font-size: {FONT_SMALL}px;

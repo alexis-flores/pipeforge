@@ -81,6 +81,9 @@ P0_TESTED = [
     "VZ-4",
     "VZ-5",
     "VZ-6",
+    # --- SCS v1.1 Phase H (P0) ---
+    "UI-7",
+    "UI-8",
 ]
 
 #: Requirements whose tests legitimately skip without external tools (§8.2).

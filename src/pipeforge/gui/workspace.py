@@ -92,6 +92,7 @@ class Workspace(QObject):
         self.m_path: Path | None = None
         self.sv_path: Path | None = None
         self.mat_path: Path | None = None  # opened .mat: session setup override
+        self.software_tree: object | None = None  # WorkspaceTree from the .mat (WS-6)
         self.source = ""
         self.audit: Audit | None = None
         self.selected_node = ""
@@ -129,6 +130,13 @@ class Workspace(QObject):
                 return
             if path.suffix.lower() == ".mat":
                 self.mat_path = path
+                try:  # also load the struct tree for inspector resolution (WS-6)
+                    from pipeforge.core.workspace.mat_loader import load_mat
+
+                    self.software_tree = load_mat(path)
+                except Exception as exc:  # never fatal (NF-4)
+                    self.software_tree = None
+                    self.logMessage.emit(f"workspace: could not parse {path.name}: {exc}")
                 self._rearm_watcher()
                 self.fileChanged.emit(str(path))
                 self.logMessage.emit(

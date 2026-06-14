@@ -53,6 +53,11 @@ CAPABILITIES = [
 ]
 
 
+def _fmt_values(values: tuple[float, ...]) -> str:
+    head = ", ".join(f"{v:.6g}" for v in values[:4])
+    return f"[{head}{', …' if len(values) > 4 else ''}]"
+
+
 class MainWindow(QMainWindow):
     def __init__(
         self,
@@ -165,7 +170,7 @@ class MainWindow(QMainWindow):
         dock.setFeatures(QDockWidget.DockWidgetFeature.NoDockWidgetFeatures)
         dock.setWidget(bar)
         self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, dock)
-        self.nav_buttons["audit"].setChecked(True)
+        self.show_view("audit")  # selects + marks the active accent indicator (UI-8)
 
     def _build_statusbar(self) -> None:
         from PyQt6.QtCore import QTimer
@@ -340,6 +345,13 @@ class MainWindow(QMainWindow):
         if name in names:
             self.stack.setCurrentIndex(names.index(name))
             self.nav_buttons[name].setChecked(True)
+            # UI-8: an unmistakable accent edge bar on the active item
+            for n, btn in self.nav_buttons.items():
+                btn.setProperty("active", n == name)
+                style = btn.style()
+                if style is not None:
+                    style.unpolish(btn)
+                    style.polish(btn)
 
     def current_view_name(self) -> str:
         return CAPABILITIES[self.stack.currentIndex()][0]
@@ -387,6 +399,13 @@ class MainWindow(QMainWindow):
         self.tools_label.setText(" ".join(dots))
         self.tools_label.setToolTip("\n".join(tips))
 
+    def _source_context(self, line: int) -> str:
+        """The originating source line in local context (not the whole file)."""
+        lines = self.workspace.source.splitlines()
+        if 1 <= line <= len(lines):
+            return f"line {line}: {lines[line - 1].strip()}"
+        return f"line {line}"
+
     def _on_selection(self, nid: str) -> None:
         audit = self.workspace.audit
         if audit is None or not nid or nid not in audit.dag.nodes:
@@ -394,15 +413,27 @@ class MainWindow(QMainWindow):
             self.source_view.highlight_span(0, 0)
             return
         node = audit.dag.nodes[nid]
+        # UI-7: structured node facts (kind, latency, ready, slack, findings,
+        # the originating source line in local context) — never a full-file dump
+        from pipeforge.core.viz.layout import compute_slack
+
+        slack = compute_slack(audit.dag).get(nid, 0)
         related = [f"{f.tag} (line {f.line})" for f in audit.findings if f.node == nid]
         parts = [
             f"<b>{node.signal or node.label}</b>",
-            f"module: {node.module or 'wire'}",
-            f"latency: {node.lat} — ready @ cycle {node.ready}",
-            f"line {node.line}: {node.label}",
+            f"kind: {node.module or 'wire'}",
+            f"latency: {node.lat} — ready @ cycle {node.ready} — slack +{slack}",
         ]
+        parts.append(self._source_context(node.line))
         if related:
             parts.append("findings: " + ", ".join(related))
+        # WS-6: an operand resolving to a software.* field shows its facts here
+        tree = self.workspace.software_tree
+        field = tree.get(node.label) if tree is not None else None  # type: ignore[union-attr]
+        if field is not None:
+            shape = f"{field.shape[0]}x{field.shape[1]}"
+            preview = field.text if field.text is not None else _fmt_values(field.values)
+            parts.append(f"<i>software.{node.label}: {field.class_name} {shape} = {preview}</i>")
         snapshot = self.workspace.snapshot
         if snapshot is not None:
             info = snapshot.get(node.signal) or snapshot.get(node.label)

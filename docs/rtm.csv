@@ -234,12 +234,17 @@ TH-3,tests/unit/test_theme_tokens.py::test_bundled_alternates_present_and_valid,
 TH-3,tests/unit/test_theme_tokens.py::test_malformed_theme_fails_validation,passed
 TH-4,tests/gui/test_main_window.py::test_theme_live_switch_no_restart,passed
 TH-5,tests/unit/test_theme_tokens.py::test_bundled_alternates_present_and_valid,passed
+TH-7,tests/gui/test_typography.py::test_type_scale_hierarchy_applied,passed
 UI-1,tests/gui/test_main_window.py::test_sidebar_has_eight_capabilities_plus_settings,passed
 UI-2,tests/gui/test_main_window.py::test_format_change_reauditss_live,passed
 UI-2,tests/gui/test_main_window.py::test_opening_file_populates_views_and_statusbar,passed
 UI-4,tests/gui/test_main_window.py::test_navigation_switches_views,passed
 UI-4,tests/gui/test_polish.py::test_command_palette_filters_and_runs,passed
 UI-6,tests/gui/test_polish.py::test_findings_table_sorts_filters_and_clicks_through,passed
+UI-7,tests/gui/test_inspector.py::test_inspector_not_full_file_dump,passed
+UI-7,tests/gui/test_inspector.py::test_node_selection_shows_structured_facts,passed
+UI-8,tests/gui/test_sidebar.py::test_active_item_has_accent_indicator,passed
+UI-8,tests/gui/test_sidebar.py::test_sidebar_items_have_labels_or_tooltips,passed
 VZ-1,tests/gui/test_polish.py::test_slack_overlay_toggle,passed
 VZ-1,tests/unit/test_viz.py::test_critical_path_and_dividers_marked,passed
 VZ-1,tests/unit/test_viz.py::test_timeline_axis_is_cycles,passed
@@ -263,3 +268,5 @@ WS-4,tests/unit/test_reconcile.py::test_hand_rounding_changes_quantized_code_fla
 WS-5,tests/integration/test_vector_oracle.py::test_fixedpoint_reference_allows_bitexact_mode,passed
 WS-5,tests/integration/test_vector_oracle.py::test_float_reference_reports_within_precision_not_bitexact,passed
 WS-5,tests/integration/test_vector_oracle.py::test_io_vectors_drive_cosim_stimulus,passed
+WS-6,tests/gui/test_inspector.py::test_software_field_value_shape_format_shown,passed
+WS-6,tests/unit/test_ranges_constants.py::test_struct_constants_become_point_ranges,passed
