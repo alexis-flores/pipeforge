@@ -71,3 +71,25 @@ def test_user_link_unlink_mark_unmapped(qtbot: QtBot) -> None:
 
     # the proposals table reflects the confirmed/edited state
     assert view.map_table.rowCount() == len(view.cmap.variables)
+
+
+@pytest.mark.req("MP-4")
+def test_coverage_meter_unmapped_instances_and_ops(qtbot: QtBot) -> None:
+    view = MappingView()
+    qtbot.addWidget(view)
+    view.load(m_source=M_SRC, sv_source=SV_SRC)
+
+    # before any grouping: every op is ungrouped and every instance unassigned
+    cov = view.coverage_report()
+    assert len(cov.ungrouped_ops) == len(view.matlab_ops) > 0
+    assert len(cov.unassigned_instances) == len(view.sv_instances) > 0
+    assert not cov.complete
+
+    # grouping one op to its instance shrinks both sides of the meter
+    op = view.matlab_ops[0]
+    inst = view.sv_instances[0]
+    view.add_group(op, [inst])
+    cov2 = view.coverage_report()
+    assert op not in cov2.ungrouped_ops
+    assert inst not in cov2.unassigned_instances
+    assert "ungrouped" in view.coverage_label.text()

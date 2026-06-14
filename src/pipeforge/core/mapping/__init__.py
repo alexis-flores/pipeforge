@@ -16,6 +16,7 @@ from pipeforge.core.mapping.consume import confirmed_sv, resolve_confirmed
 from pipeforge.core.mapping.model import (
     CONFIDENT,
     CONFIRMED,
+    DANGLING,
     PROPOSED,
     UNMAPPED,
     UNMATCHED,
@@ -27,25 +28,41 @@ from pipeforge.core.mapping.model import (
 from pipeforge.core.mapping.persist import SIDECAR_NAME, load_map, save_map, sidecar_for
 from pipeforge.core.mapping.propose import Entity, propose_variables
 from pipeforge.core.mapping.sources import matlab_entities, sv_entities
+from pipeforge.core.mapping.staleness import (
+    StalenessReport,
+    check_staleness,
+    content_hash,
+    record_hashes,
+)
+from pipeforge.core.mapping.validate import Coverage, GroupValidation, coverage, validate_group
 
 __all__ = [
     "CONFIDENT",
     "CONFIRMED",
+    "DANGLING",
     "PROPOSED",
     "SIDECAR_NAME",
     "UNMAPPED",
     "UNMATCHED",
     "WEAK",
     "CorrespondenceMap",
+    "Coverage",
     "Entity",
+    "GroupValidation",
     "OperationGroup",
+    "StalenessReport",
     "VarMapping",
+    "check_staleness",
     "confirmed_sv",
+    "content_hash",
+    "coverage",
     "load_map",
     "matlab_entities",
     "propose_variables",
+    "record_hashes",
     "resolve_confirmed",
     "save_map",
     "sidecar_for",
     "sv_entities",
+    "validate_group",
 ]

@@ -24,9 +24,12 @@ from PyQt6.QtWidgets import (
 
 from pipeforge.core.audit.engine import audit_source
 from pipeforge.core.costmodel.model import CostModel
+from pipeforge.core.frontend.dag import Dag
 from pipeforge.core.mapping.model import CorrespondenceMap
 from pipeforge.core.mapping.propose import Entity, propose_variables
 from pipeforge.core.mapping.sources import matlab_entities, sv_entities
+from pipeforge.core.mapping.validate import Coverage, coverage
+from pipeforge.core.svlint.model import SvModule
 from pipeforge.core.svlint.parse import parse_sv
 from pipeforge.core.workspace.mat_loader import WorkspaceTree, load_mat
 from pipeforge.core.workspace.sv_struct import parse_sv_software
@@ -53,6 +56,10 @@ class MappingView(QWidget):
         self.cmap = CorrespondenceMap()
         self._matlab: list[Entity] = []
         self._sv: list[Entity] = []
+        self._dag: Dag | None = None
+        self._module: SvModule | None = None
+        self.matlab_ops: list[str] = []  # DAG op node ids (MP-3 targets)
+        self.sv_instances: list[str] = []  # SV instance names
 
         title = QLabel("Correspondence")
         title.setObjectName("viewTitle")
@@ -70,6 +77,9 @@ class MappingView(QWidget):
 
         self.map_table = QTableWidget(0, 4)
         self.map_table.setHorizontalHeaderLabels(["MATLAB", "SV", "confidence", "status"])
+
+        self.coverage_label = QLabel()  # MP-4 coverage meter
+        self.coverage_label.setObjectName("muted")
 
         self.link_btn = QPushButton("Link")
         self.unlink_btn = QPushButton("Unlink")
@@ -90,6 +100,7 @@ class MappingView(QWidget):
         box.addWidget(QLabel("Proposed correspondences (confirm to make authoritative):"))
         box.addWidget(self.map_table)
         box.addLayout(actions)
+        box.addWidget(self.coverage_label)
 
     # -- loading ---------------------------------------------------------------
 
@@ -111,16 +122,45 @@ class MappingView(QWidget):
         mat_tree: WorkspaceTree | None = load_mat(mat_path) if mat_path else None
         software = parse_sv_software(software_source) if software_source else None
 
+        self._dag = dag
+        self._module = module
         self._matlab = matlab_entities(dag, mat_tree)
         self._sv = sv_entities(module, software)
+        # operation-grouping targets (MP-3/MP-4): DAG ops and SV instances
+        self.matlab_ops = (
+            [
+                nid
+                for nid, n in dag.nodes.items()
+                if n.module not in ("", "input", "const", "reshape")
+            ]
+            if dag is not None
+            else []
+        )
+        self.sv_instances = [i.name for i in module.instances] if module is not None else []
         _entity_rows(self.matlab_table, self._matlab)
         _entity_rows(self.sv_table, self._sv)
 
         self.cmap = CorrespondenceMap(variables=propose_variables(self._matlab, self._sv))
         self._refill_map()
+        self._refresh_coverage()
         self.meta.setText(
             f"{len(self._matlab)} MATLAB entities, {len(self._sv)} SV entities — "
             f"{len(self.cmap.variables)} proposed correspondences"
+        )
+
+    def coverage_report(self) -> Coverage:
+        """Ungrouped MATLAB ops and unassigned SV instances (MP-4)."""
+        return coverage(self.cmap, self.matlab_ops, self.sv_instances)
+
+    def add_group(self, matlab_op: str, sv_instances: list[str]) -> None:
+        self.cmap.add_group(matlab_op, sv_instances)
+        self._refresh_coverage()
+
+    def _refresh_coverage(self) -> None:
+        cov = self.coverage_report()
+        self.coverage_label.setText(
+            f"Coverage: {len(cov.ungrouped_ops)} op(s) ungrouped, "
+            f"{len(cov.unassigned_instances)} SV instance(s) unassigned"
         )
 
     def _refill_map(self) -> None:

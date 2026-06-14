@@ -15,6 +15,7 @@ from dataclasses import dataclass, field
 PROPOSED = "proposed"  # auto-matcher draft, not yet trusted
 CONFIRMED = "confirmed"  # user-confirmed: authoritative
 UNMAPPED = "unmapped"  # user marked intentionally unmapped (dead/absent)
+DANGLING = "dangling"  # a source change invalidated this — needs re-confirmation (MP-5)
 
 # proposal confidence tier (MP-2)
 CONFIDENT = "confident"  # name + shape + format agree
@@ -105,3 +106,23 @@ class CorrespondenceMap:
             self.variables.append(entry)
         entry.sv = ""
         entry.status = UNMAPPED
+
+    # -- operation groups (MP-3): manual only, never auto-proposed -----------
+
+    def add_group(
+        self, matlab_op: str, sv_instances: list[str], confirmed: bool = True
+    ) -> OperationGroup:
+        """Manually group one MATLAB op to one-or-more SV instances (MP-3).
+
+        This is the *only* way a group is created — there is deliberately no
+        automatic operation matching (§10).
+        """
+        group = OperationGroup(matlab_op, list(sv_instances), confirmed=confirmed)
+        self.groups.append(group)
+        return group
+
+    def group_for(self, matlab_op: str) -> OperationGroup | None:
+        for g in self.groups:
+            if g.matlab_op == matlab_op:
+                return g
+        return None

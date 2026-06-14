@@ -170,6 +170,13 @@ MP-1,tests/gui/test_mapping_view.py::test_loads_m_sv_mat_software_side_by_side,p
 MP-2,tests/gui/test_mapping_view.py::test_user_link_unlink_mark_unmapped,passed
 MP-2,tests/unit/test_mapping_propose.py::test_proposals_are_never_pre_confirmed,passed
 MP-2,tests/unit/test_mapping_propose.py::test_variable_confidence_tiers,passed
+MP-3,tests/unit/test_mapping_groups.py::test_group_latency_validated_against_matlab_op,passed
+MP-3,tests/unit/test_mapping_groups.py::test_manual_one_to_many_group,passed
+MP-3,tests/unit/test_mapping_groups.py::test_no_automatic_operation_matching,passed
+MP-3,tests/unit/test_mapping_groups.py::test_structurally_impossible_group_warned,passed
+MP-4,tests/gui/test_mapping_view.py::test_coverage_meter_unmapped_instances_and_ops,passed
+MP-5,tests/unit/test_mapping_staleness.py::test_reconfirmation_clears_dangling,passed
+MP-5,tests/unit/test_mapping_staleness.py::test_source_change_flags_dangling_mappings,passed
 MP-6,tests/integration/test_map_consumed_downstream.py::test_confirming_promotes_a_proposal_to_authoritative,passed
 MP-6,tests/integration/test_map_consumed_downstream.py::test_reconcile_oracle_bisect_read_confirmed_map,passed
 MP-6,tests/unit/test_mapping_persist.py::test_missing_sidecar_is_empty_map,passed
