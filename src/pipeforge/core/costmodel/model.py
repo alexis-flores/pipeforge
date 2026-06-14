@@ -29,6 +29,7 @@ KNOWN_FUNCS: dict[str, str] = {
     "transpose": "transp",
     "ones": "elem_same",
     "zeros": "elem_same",
+    "reshape": "reshape",  # pure column-major index remap (AR-1); zero hardware
 }
 
 
@@ -112,6 +113,7 @@ class CostModel:
             "vecnormrows": self.rootsqr_lat,
             "vecnormcols": self.rootsqr_lat,
             "transp": 0,
+            "reshape": 0,  # relabeling, not hardware (AR-5)
             "elem_same": 0,
             "elem_snorm": 0,
             "selcols": 0,

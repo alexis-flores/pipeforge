@@ -25,8 +25,8 @@ class Audit:
         out: dict[str, int] = {}
         for nid in self.dag.order:
             n = self.dag.nodes[nid]
-            if n.module in ("", "input", "const"):
-                continue
+            if n.module in ("", "input", "const", "reshape"):
+                continue  # reshape is a relabeling, not an operator instance (AR-5)
             out[n.module] = out.get(n.module, 0) + 1
         return dict(sorted(out.items()))
 

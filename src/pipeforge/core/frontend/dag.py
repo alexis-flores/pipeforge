@@ -206,6 +206,8 @@ class DagBuilder:
         if isinstance(e, Call):
             from pipeforge.core.costmodel.model import KNOWN_FUNCS
 
+            if e.name == "reshape":
+                return self.build_reshape(e)  # dim args are not data edges (AR-1)
             module = KNOWN_FUNCS[e.name]
             args = [self.build_expr(a) for a in e.args]
             shape: tuple[int, int] | None = None
@@ -231,6 +233,69 @@ class DagBuilder:
         if isinstance(e, Bin):
             return self.build_bin(e)
         raise TypeError(f"unknown expr: {e!r}")
+
+    def _reshape_dims(self, dim_args: list[Expr], line: int) -> list[int | None]:
+        """Constant target dims for a reshape; ``None`` marks an inferred ``[]``."""
+        # accept either a single size-vector literal ([r c]) or scalar dims (r, c)
+        items: list[Expr] = (
+            list(dim_args[0].elems)
+            if len(dim_args) == 1 and isinstance(dim_args[0], Mat)
+            else dim_args
+        )
+        dims: list[int | None] = []
+        for it in items:
+            if isinstance(it, Mat) and not it.elems:
+                dims.append(None)  # [] -> inferred dimension
+            elif isinstance(it, Num) and it.value == int(it.value):
+                dims.append(int(it.value))
+            else:
+                raise MatlabSyntaxError("reshape dimensions must be constant integers", line)
+        return dims
+
+    def build_reshape(self, e: Call) -> Node:
+        """reshape(x, r, c) / reshape(x, [r c]) as a zero-cost column-major remap (AR-1).
+
+        Only the operand is a data edge; the dimension arguments are metadata.
+        A target whose element count cannot match a *known* source is reported
+        via the FE-3 skipped-statement mechanism rather than silently (AR-1).
+        """
+        if not e.args:
+            raise MatlabSyntaxError("reshape requires an operand", e.span.line)
+        operand = self.build_expr(e.args[0])
+        dims = self._reshape_dims(list(e.args[1:]), e.span.line)
+        if len(dims) != 2:
+            raise MatlabSyntaxError("reshape: only 2-D targets are supported", e.span.line)
+        src_n = operand.shape[0] * operand.shape[1]
+        # (1, 1) is the placeholder for "shape unknown" absent a snapshot, so only
+        # validate the element count when the source shape is genuinely known.
+        src_known = self.snapshot is not None or operand.shape != (1, 1)
+        if None in dims:
+            if not src_known:
+                raise MatlabSyntaxError(
+                    "reshape: cannot infer [] dimension without a known source shape",
+                    e.span.line,
+                )
+            prod = 1
+            for d in dims:
+                if d is not None:
+                    prod *= d
+            if prod == 0 or src_n % prod != 0:
+                raise MatlabSyntaxError(
+                    f"reshape target {dims} is incompatible with {src_n} source elements",
+                    e.span.line,
+                )
+            inferred = src_n // prod
+            resolved = [inferred if d is None else d for d in dims]
+        else:
+            resolved = [d for d in dims if d is not None]
+        rows, cols = resolved[0], resolved[1]
+        if src_known and rows * cols != src_n:
+            raise MatlabSyntaxError(
+                f"reshape to {rows}x{cols} ({rows * cols} elements) does not match "
+                f"source ({src_n} elements)",
+                e.span.line,
+            )
+        return self.op_node("reshape", "reshape", [operand], canon(e), e.span, shape=(rows, cols))
 
     def build_bin(self, e: Bin) -> Node:
         op = e.op

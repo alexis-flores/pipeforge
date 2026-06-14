@@ -57,9 +57,18 @@ P0_TESTED = [
     "TH-5",
     "NF-1",
     "NF-4",
+    # --- SCS v1.1 Phase A (P0) ---
+    "AR-1",
+    "AR-2",
+    "AR-3",
+    "AR-4",
+    "AR-5",
+    "WS-1",
+    "WS-2",
 ]
 
 #: Requirements whose tests legitimately skip without external tools (§8.2).
+#: AR-4 also has a tool-free unit test, so it passes even when Verilator is absent.
 TOOL_GATED = {"CS-4", "CG-3"}
 
 

@@ -55,3 +55,19 @@ def test_invalid_parameters_rejected() -> None:
         CostModel(16, 16)
     with pytest.raises(ValueError):
         CostModel(16, -1)
+
+
+@pytest.mark.req("AR-5")
+def test_reshape_zero_latency_zero_instances() -> None:
+    from pipeforge.core.audit.engine import audit_source
+
+    cm = CostModel(16, 12)
+    assert cm.latency_of("reshape") == 0  # a relabeling, not hardware
+    assert not cm.is_divider("reshape")
+
+    # reshape neither adds latency nor appears in the operator census
+    audit = audit_source("v = reshape(x, 4, 1);\ny = v + v;", "reshape.m", cm)
+    assert "reshape" not in audit.census
+    assert audit.census == {"matadd": 1}
+    # the reshape stage contributes 0 cycles to the critical path
+    assert audit.total_latency == cm.add_lat

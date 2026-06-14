@@ -1,5 +1,16 @@
 requirement,test_id,status
 8.5d,tests/unit/test_architecture.py::test_cli_exposes_capabilities,passed
+AR-1,tests/unit/test_frontend_reshape.py::test_reshape_dim_mismatch_skipped_with_reason,passed
+AR-1,tests/unit/test_frontend_reshape.py::test_reshape_parsed_as_node,passed
+AR-2,tests/unit/test_dag_shape.py::test_elementwise_preserves_shape,passed
+AR-2,tests/unit/test_dag_shape.py::test_reduction_collapses_shape,passed
+AR-2,tests/unit/test_dag_shape.py::test_scalar_shape_is_1x1,passed
+AR-3,tests/unit/test_fxp_layout.py::test_golden_column_major_layout,passed
+AR-3,tests/unit/test_fxp_layout.py::test_reshape_is_value_preserving_zero_latency,passed
+AR-4,tests/integration/test_reshape_cosim.py::test_24x1_to_8x3_element_alignment,passed
+AR-4,tests/unit/test_bisect.py::test_mismatch_refers_to_same_physical_element,passed
+AR-5,tests/unit/test_codegen.py::test_reshape_emits_as_wire_not_instance,passed
+AR-5,tests/unit/test_costmodel.py::test_reshape_zero_latency_zero_instances,passed
 AU-1,tests/unit/test_costmodel.py::test_latencies_match_nkmatlib_model[12-8],passed
 AU-1,tests/unit/test_costmodel.py::test_latencies_match_nkmatlib_model[16-12],passed
 AU-1,tests/unit/test_costmodel.py::test_latencies_match_nkmatlib_model[18-14],passed
@@ -199,3 +210,8 @@ VZ-1,tests/unit/test_viz.py::test_timeline_axis_is_cycles,passed
 VZ-2,tests/gui/test_main_window.py::test_finding_click_through_selects_node_and_highlights_source,passed
 VZ-3,tests/gui/test_main_window.py::test_visualizer_svg_export,passed
 VZ-3,tests/unit/test_viz.py::test_svg_export_uses_palette_tokens_only,passed
+WS-1,tests/unit/test_mat_loader.py::test_extracts_constants_and_io_vectors_with_shape,passed
+WS-1,tests/unit/test_mat_loader.py::test_handles_v73_hdf5_and_legacy_mat,passed
+WS-1,tests/unit/test_mat_loader.py::test_nested_struct_walk_dotted_paths,passed
+WS-2,tests/unit/test_sv_struct.py::test_missing_software_pattern_raises,passed
+WS-2,tests/unit/test_sv_struct.py::test_software_struct_parsed_to_dotted_paths,passed

@@ -28,3 +28,26 @@ source (`matlib-main/rtl/`). Where the README and the RTL disagree, the RTL wins
 
 Latencies are *not* modeled here (they live in `core/costmodel`); fxp computes
 the steady-state value each module produces.
+
+## Array layout — the column-major contract (AR-3 / AR-4)
+
+Array-valued operands are stored as a flat list in **MATLAB column-major
+(Fortran) order**: column 1 first, then column 2, and so on. For an `R×C`
+operand, the element at (1-based) row `r`, column `c` lives at flat index
+
+```
+flat = (c - 1) * R + (r - 1)        # 0-based flat index
+r - 1 = flat mod R,  c - 1 = flat div R
+```
+
+This is the **same order MATLAB uses when it flattens or `reshape`s**, and it
+must match how the nkMatlib RTL packs a `[R][C]` (`[R-1:0][C-1:0]`) operand —
+the first `R` elements are column 1. `reshape` is therefore a pure index remap:
+the flat column-major list is unchanged, so the golden model evaluates it as a
+value-preserving pass-through (no arithmetic, no latency, no operator instance).
+
+Because both the golden model and the RTL index by this single rule,
+co-simulation and bisection compare element-for-element by physical position: a
+reported mismatch at flat index `k` refers to the same `(row, col)` element on
+both sides. A `24×1 ↔ 8×3` reshape pair is exercised against real RTL by
+`tests/integration/test_reshape_cosim.py` (skipped without Verilator).

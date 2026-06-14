@@ -130,6 +130,11 @@ class _Emitter:
             if node.module == "":
                 self._emit_wiring(node)
                 continue
+            if node.module == "reshape":
+                # pure column-major relabel: the output is the operand's own
+                # wires — no instance, no latency (AR-3/AR-5)
+                self.sig[node.nid] = self.sig[node.args[0]]
+                continue
             self._emit_operator(node)
 
         total = self.audit.total_latency

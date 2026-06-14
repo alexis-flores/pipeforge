@@ -133,7 +133,9 @@ def apply_fixed(node: Node, args: list[FixedVec], fmt: FxFormat) -> FixedVec:
         return ops.crossp(args[0], args[1], fmt)
     if mod == "matmul":
         return [ops.dotprod(args[0], args[1], fmt)]
-    if mod in ("transp", "elem_same", "elem_snorm", "selcols", "selrows"):
+    if mod in ("transp", "reshape", "elem_same", "elem_snorm", "selcols", "selrows"):
+        # reshape is a pure column-major index remap: the flat list is already
+        # in MATLAB column-major order, so values pass through unchanged (AR-3).
         return args[0]
     raise EvalError(f"cannot evaluate module '{mod}' (node {node.nid})")
 
@@ -224,8 +226,8 @@ def _eval_float_node(
         ]
     if mod == "matmul":
         return [sum(x * y for x, y in zip(args[0], args[1], strict=True))]
-    if mod in ("transp", "elem_same", "elem_snorm", "selcols", "selrows"):
-        return args[0]
+    if mod in ("transp", "reshape", "elem_same", "elem_snorm", "selcols", "selrows"):
+        return args[0]  # column-major remap is value-preserving (AR-3)
     raise EvalError(f"cannot evaluate module '{mod}' (node {node.nid})")
 
 

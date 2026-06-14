@@ -62,6 +62,19 @@ def test_structure_of_generated_module() -> None:
     assert f"valid #(.WIDTH(1), .DELAY({CM.mul_lat + CM.add_lat}))" in sv
 
 
+@pytest.mark.req("AR-5")
+def test_reshape_emits_as_wire_not_instance() -> None:
+    # reshape is a pure relabel: no operator instance, no latency — the product
+    # is generated exactly as if x were used directly (AR-3/AR-5).
+    audit = audit_source("y = reshape(x, 8, 3);\nz = y .* k;", "reshape.m", CM)
+    sv = generate_sv(audit, "gen_reshape")
+    assert "i_reshape" not in sv  # no operator instance for the relabel
+    assert "i_elem_smul_z_4" in sv  # the product uses x's wires directly
+    assert ".a (x_0)" in sv
+    result = lint_source(sv, "gen_reshape.sv", CM)
+    assert result.findings == [], [f"{f.check}: {f.message}" for f in result.findings]
+
+
 @pytest.mark.req("CG-1")
 def test_outputs_aligned_to_final_stage() -> None:
     # p (cycle 4) must be piped to the final stage (cycle 32) alongside q

@@ -113,3 +113,33 @@ def test_downstream_dimming_set() -> None:
     assert dag.statements[1].root in downstream
     assert dag.statements[2].root in downstream
     assert prod_root not in downstream
+
+
+@pytest.mark.req("AR-4")
+def test_mismatch_refers_to_same_physical_element() -> None:
+    # a 6-element column-major vector carried through a reshape; corrupt exactly
+    # one physical element and confirm the report points at *that* element.
+    src = "y = reshape([a, b, c, d, e, f], 3, 2);"
+    assigns, _ = parse_program(src)
+    builder, problems = build_dag(assigns, CM)
+    assert problems == []
+    dag = builder.dag
+    y_root = dag.statements[0].root
+    assert dag.nodes[y_root].shape == (3, 2)
+
+    stim = [{name: (i + 1) << FMT.scale for i, name in enumerate("abcdef")}]
+    obs = observed_all(dag, stim)
+    rows = 3
+    bad_flat = 1 * rows + 0  # column-major (row 0, col 1) -> flat index 3
+    corrupted = list(obs[y_root][0])
+    corrupted[bad_flat] ^= 0x4
+    obs[y_root][0] = corrupted
+
+    report = bisect(dag, stim, obs, FMT)
+    assert report.diverged
+    assert report.node == y_root
+    # expected/actual are full column-major vectors that differ only at bad_flat,
+    # so the reported divergence is the same physical element on both sides
+    assert len(report.expected) == len(report.actual) == 6
+    differing = [k for k in range(6) if report.expected[k] != report.actual[k]]
+    assert differing == [bad_flat]
