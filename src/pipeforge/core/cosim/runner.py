@@ -143,13 +143,14 @@ def run_cosim(
     extra_sources: list[Path] | None = None,
     include_dirs: list[Path] | None = None,
     vector_count: int = 256,
+    cadence: str = "continuous",
 ) -> CosimResult:
-    """Build with Verilator via the cocotb runner and compare (CS-1c, CS-3)."""
+    """Build with Verilator via the cocotb runner and compare (CS-1c, CS-3, CS-6)."""
     check_tools()
     fmt = FxFormat(audit.cm.width, audit.cm.scale)
     inputs = [n.label for n in audit.dag.inputs()]
     vectors = generate_stimulus(inputs, fmt, count=vector_count)
-    spec = write_harness(audit, dut_module, vectors, work_dir)
+    spec = write_harness(audit, dut_module, vectors, work_dir, cadence=cadence)
 
     runner_script = work_dir / "run_cocotb.py"
     # absolute paths: the cocotb runner executes from inside the work dir,

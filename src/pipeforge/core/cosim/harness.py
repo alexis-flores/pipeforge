@@ -111,7 +111,9 @@ LATENCY = {spec.latency}
 async def cosim(dut):
     work = os.environ["PIPEFORGE_COSIM_DIR"]
     with open(os.path.join(work, "stimulus.json")) as fh:
-        vectors = json.load(fh)["vectors"]
+        stim_doc = json.load(fh)
+    vectors = stim_doc["vectors"]
+    schedule = stim_doc.get("valid_schedule") or None
 
     cocotb.start_soon(Clock(dut.clk, 10, units="ns").start())
     dut.reset.value = 1
@@ -128,9 +130,13 @@ async def cosim(dut):
     cycle = 0
     fed = 0
     total = len(vectors)
-    # one problem per clock; drain LATENCY + margin afterwards
-    while len(actual[OUTPUTS[0]]) < total and cycle < total + LATENCY + 64:
-        if fed < total:
+    # CS-6: a per-cycle valid schedule (True = present next vector; False = bubble),
+    # then a drain tail. Comparison stays valid-gated regardless of cadence.
+    drive_plan = list(schedule or [True] * total) + [False] * (LATENCY + 64)
+    for drive in drive_plan:
+        if len(actual[OUTPUTS[0]]) >= total:
+            break
+        if drive and fed < total:
             dut.valid_0.value = 1
             for name in INPUTS:
                 getattr(dut, name + "_0").value = vectors[fed][name]
@@ -157,15 +163,27 @@ def write_harness(
     dut_module: str,
     vectors: list[Vector],
     work_dir: Path,
+    cadence: str = "continuous",
 ) -> HarnessSpec:
-    """Write all generated collateral into work_dir (CS-1)."""
+    """Write all generated collateral into work_dir (CS-1, CS-6)."""
+    from pipeforge.core.cosim.stimulus import valid_schedule
+
     fmt = FxFormat(audit.cm.width, audit.cm.scale)
     spec = harness_spec(audit, dut_module)
     work_dir.mkdir(parents=True, exist_ok=True)
+    schedule = valid_schedule(len(vectors), cadence)
     (work_dir / "tb_wrapper.sv").write_text(render_wrapper_sv(spec), encoding="utf-8")
     (work_dir / "tb_cosim.py").write_text(render_cocotb_tb(spec), encoding="utf-8")
     (work_dir / "stimulus.json").write_text(
-        json.dumps({"vectors": vectors, "width": spec.width, "scale": spec.scale}, indent=1),
+        json.dumps(
+            {
+                "vectors": vectors,
+                "width": spec.width,
+                "scale": spec.scale,
+                "valid_schedule": schedule,
+            },
+            indent=1,
+        ),
         encoding="utf-8",
     )
     expected = golden_outputs(audit, vectors, fmt)

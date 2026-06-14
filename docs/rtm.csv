@@ -74,6 +74,13 @@ CS-3,tests/unit/test_cosim.py::TestCompare::test_first_failing_vector_reported,p
 CS-3,tests/unit/test_cosim.py::TestCompare::test_pass_with_error_stats,passed
 CS-3,tests/unit/test_cosim.py::TestCompare::test_truncated_stream_fails,passed
 CS-4,tests/integration/test_cosim_e2e.py::test_known_good_pair_passes_cosim,passed
+CS-5,tests/unit/test_stimulus_hazard.py::test_hazard_vectors_deterministic,passed
+CS-5,tests/unit/test_stimulus_hazard.py::test_near_zero_divisor_targeted,passed
+CS-5,tests/unit/test_stimulus_hazard.py::test_overflow_node_operands_extremized,passed
+CS-6,tests/integration/test_cosim_selftest.py::test_selftest_passes_under_gapped_valid,passed
+CS-6,tests/unit/test_stimulus_cadence.py::test_continuous_is_unbroken,passed
+CS-6,tests/unit/test_stimulus_cadence.py::test_gapped_valid_cadence,passed
+CS-6,tests/unit/test_stimulus_cadence.py::test_single_cycle_valids,passed
 DSE-1,tests/unit/test_dse.py::test_sweep_cancellation,passed
 DSE-1,tests/unit/test_dse.py::test_sweep_evaluates_grid_with_progress,passed
 DSE-2,tests/gui/test_dse_view.py::test_adopt_updates_workspace_format,passed
@@ -223,3 +230,7 @@ WS-1,tests/unit/test_mat_loader.py::test_handles_v73_hdf5_and_legacy_mat,passed
 WS-1,tests/unit/test_mat_loader.py::test_nested_struct_walk_dotted_paths,passed
 WS-2,tests/unit/test_sv_struct.py::test_missing_software_pattern_raises,passed
 WS-2,tests/unit/test_sv_struct.py::test_software_struct_parsed_to_dotted_paths,passed
+WS-3,tests/unit/test_reconcile.py::test_exact_mode_quantized_bit_compare,passed
+WS-3,tests/unit/test_reconcile.py::test_missing_extra_shape_mismatch_reported,passed
+WS-3,tests/unit/test_reconcile.py::test_tolerance_mode_decimal_and_lsb,passed
+WS-4,tests/unit/test_reconcile.py::test_hand_rounding_changes_quantized_code_flagged,passed
