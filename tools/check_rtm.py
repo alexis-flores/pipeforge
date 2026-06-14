@@ -77,6 +77,10 @@ P0_TESTED = [
     "WS-5",
     "CS-7",
     "BI-4",
+    # --- SCS v1.1 Phase G (P0) ---
+    "VZ-4",
+    "VZ-5",
+    "VZ-6",
 ]
 
 #: Requirements whose tests legitimately skip without external tools (§8.2).

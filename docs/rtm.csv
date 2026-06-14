@@ -246,6 +246,11 @@ VZ-1,tests/unit/test_viz.py::test_timeline_axis_is_cycles,passed
 VZ-2,tests/gui/test_main_window.py::test_finding_click_through_selects_node_and_highlights_source,passed
 VZ-3,tests/gui/test_main_window.py::test_visualizer_svg_export,passed
 VZ-3,tests/unit/test_viz.py::test_svg_export_uses_palette_tokens_only,passed
+VZ-4,tests/gui/test_timeline_edges.py::test_edges_routed_and_faded,passed
+VZ-4,tests/gui/test_timeline_edges.py::test_selected_node_edges_brighten,passed
+VZ-5,tests/gui/test_timeline_render.py::test_per_op_accent_bar,passed
+VZ-5,tests/gui/test_timeline_render.py::test_row_spacing_on_8px_grid,passed
+VZ-6,tests/gui/test_timeline_cursor.py::test_cursor_scrubs_and_highlights_column,passed
 WS-1,tests/unit/test_mat_loader.py::test_extracts_constants_and_io_vectors_with_shape,passed
 WS-1,tests/unit/test_mat_loader.py::test_handles_v73_hdf5_and_legacy_mat,passed
 WS-1,tests/unit/test_mat_loader.py::test_nested_struct_walk_dotted_paths,passed
