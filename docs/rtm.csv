@@ -89,6 +89,8 @@ CS-7,tests/unit/test_codegen_probe.py::test_probe_wrapper_exposes_named_signals,
 CS-8,tests/unit/test_cosim_trace.py::test_active_capture_backend_reported,passed
 CS-8,tests/unit/test_cosim_trace.py::test_fst_signal_map_by_convention,passed
 CS-8,tests/unit/test_cosim_trace.py::test_trace_streams_match_golden_shape,passed
+CS-9,tests/integration/test_modular_cosim.py::test_group_isolated_against_sub_dag_golden,passed
+CS-9,tests/integration/test_modular_cosim.py::test_sub_dag_isolates_just_the_operation,passed
 DSE-1,tests/unit/test_dse.py::test_sweep_cancellation,passed
 DSE-1,tests/unit/test_dse.py::test_sweep_evaluates_grid_with_progress,passed
 DSE-2,tests/gui/test_dse_view.py::test_adopt_updates_workspace_format,passed
@@ -98,6 +100,10 @@ DSE-2,tests/unit/test_dse.py::TestPareto::test_front_sorted_by_error,passed
 DSE-2,tests/unit/test_dse.py::TestPareto::test_identical_metrics_both_kept,passed
 DSE-3,tests/unit/test_dse.py::TestCacheAndExport::test_cache_round_trip,passed
 DSE-3,tests/unit/test_dse.py::TestCacheAndExport::test_csv_and_json_export,passed
+DX-1,tests/integration/test_triage.py::test_single_summary_combines_equivalence_bisect_inputs,passed
+DX-1,tests/integration/test_triage.py::test_triage_reports_equivalence_drift_and_delay_skew,passed
+DX-2,tests/unit/test_traceability.py::test_empty_map_exports_cleanly,passed
+DX-2,tests/unit/test_traceability.py::test_export_matlab_to_rtl_with_per_stage_latency,passed
 FE-1,tests/unit/test_frontend.py::TestGrammar::test_all_binary_operators,passed
 FE-1,tests/unit/test_frontend.py::TestGrammar::test_comments_ignored,passed
 FE-1,tests/unit/test_frontend.py::TestGrammar::test_index_atom_is_opaque,passed
