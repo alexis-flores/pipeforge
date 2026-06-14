@@ -151,6 +151,14 @@ FX-5,tests/unit/test_fxp_ops.py::TestUsqrt::test_usqrt_monotone,passed
 FX-5,tests/unit/test_fxp_ops.py::TestWrapConsistency::test_abs_nonnegative_or_wrapped_min,passed
 FX-5,tests/unit/test_fxp_ops.py::TestWrapConsistency::test_add_sub_wrap,passed
 FX-5,tests/unit/test_fxp_ops.py::TestWrapConsistency::test_neg_involution,passed
+MP-1,tests/gui/test_mapping_view.py::test_loads_m_sv_mat_software_side_by_side,passed
+MP-2,tests/gui/test_mapping_view.py::test_user_link_unlink_mark_unmapped,passed
+MP-2,tests/unit/test_mapping_propose.py::test_proposals_are_never_pre_confirmed,passed
+MP-2,tests/unit/test_mapping_propose.py::test_variable_confidence_tiers,passed
+MP-6,tests/integration/test_map_consumed_downstream.py::test_confirming_promotes_a_proposal_to_authoritative,passed
+MP-6,tests/integration/test_map_consumed_downstream.py::test_reconcile_oracle_bisect_read_confirmed_map,passed
+MP-6,tests/unit/test_mapping_persist.py::test_missing_sidecar_is_empty_map,passed
+MP-6,tests/unit/test_mapping_persist.py::test_sidecar_roundtrip_human_readable,passed
 NF-1,tests/unit/test_perf.py::test_audit_500_statements_under_one_second,passed
 NF-2,tests/unit/test_perf.py::test_golden_model_throughput,passed
 NF-3,tests/gui/test_main_window.py::test_cold_start_under_two_seconds,passed
