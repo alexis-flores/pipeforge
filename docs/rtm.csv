@@ -199,6 +199,10 @@ RP-1,tests/unit/test_ranges.py::TestPropagate::test_per_node_ranges_and_bits,pas
 RP-1,tests/unit/test_ranges.py::TestPropagate::test_sqrt_chain,passed
 RP-2,tests/unit/test_ranges.py::test_affine_tighter_on_correlated_expression,passed
 RP-3,tests/unit/test_ranges.py::test_recommend_format_meets_budget_empirically,passed
+RP-4,tests/unit/test_ranges_measured.py::test_measured_range_from_snapshot,passed
+RP-4,tests/unit/test_ranges_measured.py::test_three_way_declared_affine_measured_labeled,passed
+RP-5,tests/unit/test_ranges_measured.py::test_measured_tightens_recommendation_labeled_observed,passed
+RP-5,tests/unit/test_ranges_measured.py::test_static_only_mode_stays_conservative,passed
 SL-1,tests/unit/test_svlint.py::test_backend_reported_and_fallback_works,passed
 SL-1,tests/unit/test_svlint.py::test_backends_agree_on_corpus[bad_data_reset.sv],passed
 SL-1,tests/unit/test_svlint.py::test_backends_agree_on_corpus[bad_missing_pipe.sv],passed
@@ -228,6 +232,10 @@ SL-3,tests/unit/test_svlint.py::test_known_bad_files_trigger_exactly_their_findi
 SL-3,tests/unit/test_svlint.py::test_known_bad_files_trigger_exactly_their_finding[bad_valid_unreset.sv-reset],passed
 SL-3,tests/unit/test_svlint.py::test_known_bad_files_trigger_exactly_their_finding[bad_wrong_pipe.sv-delay-match],passed
 SL-4,tests/unit/test_svlint.py::test_findings_crossref_dag_nodes,passed
+SL-5,tests/unit/test_svlint_scale.py::test_scale_check_suppressible,passed
+SL-5,tests/unit/test_svlint_scale.py::test_scale_continuity_flags_missing_rescale,passed
+SL-6,tests/unit/test_svlint_dividers.py::test_divider_count_matches_optimized_dag,passed
+SL-6,tests/unit/test_svlint_dividers.py::test_excess_divider_count_flagged,passed
 TH-1,tests/unit/test_architecture.py::test_no_hex_colors_outside_theme_files,passed
 TH-2,tests/unit/test_theme_tokens.py::test_default_theme_is_gruvbox_dark_soft,passed
 TH-3,tests/unit/test_theme_tokens.py::test_bundled_alternates_present_and_valid,passed

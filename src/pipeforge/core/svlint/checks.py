@@ -33,6 +33,8 @@ CHECK_VALID_CHAIN = "valid-chain"
 CHECK_RESET = "reset"
 CHECK_NAMING = "naming"
 CHECK_UNKNOWN = "unknown-module"
+CHECK_SCALE = "scale-continuity"  # SL-5
+CHECK_DIVIDERS = "divider-count"  # SL-6
 ALL_CHECKS = (
     CHECK_DELAY,
     CHECK_SUFFIX,
@@ -40,6 +42,15 @@ ALL_CHECKS = (
     CHECK_RESET,
     CHECK_NAMING,
     CHECK_UNKNOWN,
+    CHECK_SCALE,
+    CHECK_DIVIDERS,
+)
+
+#: nkMatlib modules that rescale SCALE (the legitimate place a SCALE may change).
+RESCALE_MODULES = frozenset({"snorm", "unorm", "norm", "elem_snorm"})
+#: RTL module names that contain a divider (for the SL-6 census).
+DIVIDER_RTL = frozenset(
+    {"elem_sdiv", "elem_sinv", "matunscale", "elem_sdiv_by_row", "sdiv", "sinv", "udiv", "uinv"}
 )
 
 
@@ -306,12 +317,108 @@ def _check_unknown_modules(module: SvModule, cm: CostModel) -> list[LintFinding]
     return findings
 
 
+def _propagate_scales(module: SvModule, cm: CostModel) -> dict[str, int]:
+    """Signal -> SCALE, assuming standard ops preserve it and *snorm rescale (SL-5)."""
+    scales: dict[str, int] = {}
+    for port in module.ports:
+        if port.direction == "input":
+            base = split_suffix(port.name)
+            if base is not None and base[1] == "0":
+                scales[port.name] = cm.scale
+    for _ in range(12):
+        changed = False
+        for pipe in module.pipes:
+            src, dst = f"{pipe.signal}_{pipe.from_stage}", f"{pipe.signal}_{pipe.to_stage}"
+            if src in scales and scales.get(dst) != scales[src]:
+                scales[dst] = scales[src]
+                changed = True
+        for inst in module.instances:
+            if inst.module in PIPE_MODULES:
+                src, dst = inst.conns.get("i", ""), inst.conns.get("o", "")
+                if src in scales and dst and scales.get(dst) != scales[src]:
+                    scales[dst] = scales[src]
+                    changed = True
+                continue
+            in_scales = [scales[e] for p in DATA_PORTS if (e := inst.conns.get(p, "")) in scales]
+            if inst.module in RESCALE_MODULES:
+                fs = inst.params.get("F_SCALE", "")
+                out_scale = int(fs) if fs.isdigit() else (in_scales[0] if in_scales else cm.scale)
+            else:
+                out_scale = in_scales[0] if in_scales else cm.scale
+            for p in OUTPUT_PORTS:
+                out = inst.conns.get(p, "")
+                if out and _is_signal_ref(out) and scales.get(out) != out_scale:
+                    scales[out] = out_scale
+                    changed = True
+        if not changed:
+            break
+    return scales
+
+
+def _check_scale_continuity(
+    module: SvModule, cm: CostModel, expected: dict[str, int] | None = None
+) -> list[LintFinding]:
+    """SL-5: SCALE entering each operator must be consistent; flag missing rescale.
+
+    `expected` (from an MP-6 per-point format map) overrides the inferred SCALE
+    for named signals when supplied.
+    """
+    scales = _propagate_scales(module, cm)
+    if expected:
+        scales.update(expected)
+    findings: list[LintFinding] = []
+    for inst in module.instances:
+        if inst.module in PIPE_MODULES or inst.module in RESCALE_MODULES:
+            continue
+        pairs = [
+            (inst.conns[p], scales[inst.conns[p]])
+            for p in DATA_PORTS
+            if inst.conns.get(p, "") in scales
+        ]
+        if len({s for _, s in pairs}) > 1:
+            ordered = sorted(pairs, key=lambda kv: kv[1])
+            lo, hi = ordered[0], ordered[-1]
+            findings.append(
+                LintFinding(
+                    CHECK_SCALE,
+                    inst.line,
+                    f"instance '{inst.name}' ({inst.module}): operand '{lo[0]}' enters at "
+                    f"SCALE {lo[1]} but '{hi[0]}' at SCALE {hi[1]} (delta {hi[1] - lo[1]})",
+                    f"insert elem_snorm to rescale '{lo[0]}' to SCALE {hi[1]} before '{inst.name}'",
+                    signal=_signal_of_instance(inst),
+                )
+            )
+    return findings
+
+
+def check_divider_count(module: SvModule, audit: object) -> list[LintFinding]:
+    """SL-6: flag RTL that instantiates more dividers than the optimized DAG implies."""
+    from pipeforge.core.audit.engine import Audit
+
+    assert isinstance(audit, Audit)
+    rtl = sum(1 for inst in module.instances if inst.module in DIVIDER_RTL)
+    implied = audit.divider_count
+    if rtl > implied:
+        return [
+            LintFinding(
+                CHECK_DIVIDERS,
+                0,
+                f"RTL instantiates {rtl} divider(s) but the optimized DAG implies "
+                f"{implied} — audit advice (RECIP/CDIV sharing) was not applied",
+                "share reciprocals / fold constant divides per the audit findings to "
+                f"reach {implied} divider(s)",
+            )
+        ]
+    return []
+
+
 def lint_source(
     text: str,
     filename: str,
     cm: CostModel,
     disabled: frozenset[str] = frozenset(),
     prefer_pyslang: bool = True,
+    audit: object | None = None,
 ) -> LintResult:
     """Lint one SystemVerilog file against nkMatlib conventions (SL-1..3)."""
     module, backend = parse_sv(text, prefer_pyslang=prefer_pyslang)
@@ -325,7 +432,10 @@ def lint_source(
         (CHECK_RESET, _check_reset_discipline(module)),
         (CHECK_NAMING, _check_naming(module)),
         (CHECK_UNKNOWN, _check_unknown_modules(module, cm)),
+        (CHECK_SCALE, _check_scale_continuity(module, cm)),
     ]
+    if audit is not None:
+        checks.append((CHECK_DIVIDERS, check_divider_count(module, audit)))
     for check_id, findings in checks:
         if check_id not in disabled:
             result.findings.extend(findings)

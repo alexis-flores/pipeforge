@@ -211,6 +211,15 @@ class FormatRecommendation:
     rationale: str
     validated_sqnr_db: float  # empirical FX-4 check (RP-3)
     meets_budget: bool
+    empirical: bool = False  # LEFT tightened from measured ranges (RP-5)
+
+
+def _measured_left(dag: Dag, snapshot: object, cm: CostModel) -> int | None:
+    """Required LEFT from measured node maxima (observed, not proven; RP-5)."""
+    measured = measured_ranges(dag, snapshot, cm)
+    if not measured:
+        return None
+    return max((integer_bits_needed(iv) for iv in measured.values()), default=1)
 
 
 def recommend_format(
@@ -219,11 +228,24 @@ def recommend_format(
     cm: CostModel,
     error_budget: float,
     validate_vectors: int = 64,
+    snapshot: object | None = None,
+    use_measured: bool = False,
 ) -> FormatRecommendation:
     """Recommend WIDTH/SCALE meeting an absolute error budget, then verify
-    empirically with a fixed-vs-float run (RP-3)."""
+    empirically with a fixed-vs-float run (RP-3).
+
+    With ``use_measured`` and a snapshot, LEFT is tightened from *measured*
+    ranges (economical) and flagged empirical; otherwise it stays static
+    (conservative). Either way the result is validated by the FX-4 run (RP-5).
+    """
     report = propagate(dag, input_ranges, cm, method="interval")
     left = report.required_left
+    empirical = False
+    if use_measured and snapshot is not None:
+        measured_left = _measured_left(dag, snapshot, cm)
+        if measured_left is not None:
+            left = measured_left  # tighter: only as wide as the data observed
+            empirical = True
     if left % 2:
         left += 1  # usqrt.sv shifts by LEFT/2: LEFT must be even for correct scaling
     depth = max(1, len([n for n in dag.order if dag.nodes[n].args]))
@@ -251,17 +273,86 @@ def recommend_format(
                 worst = min(worst, s.sqnr_db)
             if s.max_abs_error > error_budget:
                 meets = False
+    basis = "measured ranges (observed, not proven)" if empirical else "the propagated ranges"
     return FormatRecommendation(
         width=width,
         scale=scale,
         left=left,
         rationale=(
-            f"LEFT={left} covers the propagated ranges; SCALE={scale} targets "
+            f"LEFT={left} covers {basis}; SCALE={scale} targets "
             f"|error| <= {error_budget} over ~{depth} chained operators"
         ),
         validated_sqnr_db=worst if math.isfinite(worst) else math.inf,
         meets_budget=meets,
+        empirical=empirical,
     )
+
+
+def measured_ranges(dag: Dag, snapshot: object, cm: CostModel) -> dict[str, Interval]:
+    """Per-node ranges *observed* by evaluating the DAG over snapshot values (RP-4).
+
+    These are empirical (observed, not proven) — they describe the data the
+    snapshot happened to contain, never a guarantee.
+    """
+    from pipeforge.core.frontend.varinfo import WorkspaceSnapshot
+    from pipeforge.core.fxp.evaluator import evaluate_float
+    from pipeforge.core.fxp.fx import FxFormat
+
+    if not isinstance(snapshot, WorkspaceSnapshot):
+        return {}
+    streams: dict[str, list[float]] = {}
+    for node in dag.inputs():
+        info = snapshot.get(node.label)
+        if info is None or not info.values:
+            return {}  # need every input populated to evaluate
+        streams[node.label] = list(info.values)
+    if not streams:
+        return {}
+    fmt = FxFormat(cm.width, cm.scale)
+    lanes = max(len(v) for v in streams.values())
+    acc: dict[str, tuple[float, float]] = {}
+    for i in range(lanes):
+        vec = {label: vals[i % len(vals)] for label, vals in streams.items()}
+        values = evaluate_float(dag, dict(vec.items()), fmt)
+        for nid, fvec in values.items():
+            for x in fvec:
+                lo, hi = acc.get(nid, (x, x))
+                acc[nid] = (min(lo, x), max(hi, x))
+    return {nid: Interval(lo, hi) for nid, (lo, hi) in acc.items()}
+
+
+MEASURED_NOTE = "observed, not proven"
+
+
+@dataclass(frozen=True)
+class RangeComparison:
+    """Declared (interval) vs affine vs measured range for one node (RP-4)."""
+
+    nid: str
+    signal: str
+    declared: Interval
+    affine: Interval
+    measured: Interval | None
+    measured_note: str = MEASURED_NOTE
+
+
+def three_way_ranges(
+    dag: Dag, input_ranges: dict[str, Interval], cm: CostModel, snapshot: object
+) -> dict[str, RangeComparison]:
+    """Declared, affine, and measured ranges side by side, each labeled (RP-4)."""
+    interval = propagate(dag, input_ranges, cm, method="interval")
+    affine = propagate(dag, input_ranges, cm, method="affine")
+    measured = measured_ranges(dag, snapshot, cm)
+    out: dict[str, RangeComparison] = {}
+    for nid, nr in interval.nodes.items():
+        out[nid] = RangeComparison(
+            nid=nid,
+            signal=nr.signal,
+            declared=nr.interval,
+            affine=affine.nodes[nid].interval,
+            measured=measured.get(nid),
+        )
+    return out
 
 
 def ranges_from_snapshot(dag: Dag, snapshot: object) -> dict[str, Interval]:
