@@ -102,6 +102,7 @@ DSE-3,tests/unit/test_dse.py::TestCacheAndExport::test_cache_round_trip,passed
 DSE-3,tests/unit/test_dse.py::TestCacheAndExport::test_csv_and_json_export,passed
 DX-1,tests/integration/test_triage.py::test_single_summary_combines_equivalence_bisect_inputs,passed
 DX-1,tests/integration/test_triage.py::test_triage_reports_equivalence_drift_and_delay_skew,passed
+DX-2,tests/unit/test_cli.py::test_cli_traceability,passed
 DX-2,tests/unit/test_traceability.py::test_empty_map_exports_cleanly,passed
 DX-2,tests/unit/test_traceability.py::test_export_matlab_to_rtl_with_per_stage_latency,passed
 FE-1,tests/unit/test_frontend.py::TestGrammar::test_all_binary_operators,passed
@@ -177,8 +178,10 @@ MO-2,tests/gui/test_motion.py::test_view_switch_is_instant_and_safe,passed
 MO-3,tests/gui/test_motion.py::test_adopt_config_updates_chip,passed
 MP-1,tests/gui/test_mapping_view.py::test_loads_m_sv_mat_software_side_by_side,passed
 MP-2,tests/gui/test_mapping_view.py::test_user_link_unlink_mark_unmapped,passed
+MP-2,tests/unit/test_cli.py::test_cli_map_propose_confirm_show,passed
 MP-2,tests/unit/test_mapping_propose.py::test_proposals_are_never_pre_confirmed,passed
 MP-2,tests/unit/test_mapping_propose.py::test_variable_confidence_tiers,passed
+MP-3,tests/gui/test_mapping_view.py::test_operation_grouping_in_gui,passed
 MP-3,tests/unit/test_mapping_groups.py::test_group_latency_validated_against_matlab_op,passed
 MP-3,tests/unit/test_mapping_groups.py::test_manual_one_to_many_group,passed
 MP-3,tests/unit/test_mapping_groups.py::test_no_automatic_operation_matching,passed
@@ -186,6 +189,7 @@ MP-3,tests/unit/test_mapping_groups.py::test_structurally_impossible_group_warne
 MP-4,tests/gui/test_mapping_view.py::test_coverage_meter_unmapped_instances_and_ops,passed
 MP-5,tests/unit/test_mapping_staleness.py::test_reconfirmation_clears_dangling,passed
 MP-5,tests/unit/test_mapping_staleness.py::test_source_change_flags_dangling_mappings,passed
+MP-6,tests/gui/test_mapping_view.py::test_sidecar_save_load_roundtrip_in_gui,passed
 MP-6,tests/integration/test_map_consumed_downstream.py::test_confirming_promotes_a_proposal_to_authoritative,passed
 MP-6,tests/integration/test_map_consumed_downstream.py::test_reconcile_oracle_bisect_read_confirmed_map,passed
 MP-6,tests/unit/test_mapping_persist.py::test_missing_sidecar_is_empty_map,passed
@@ -247,6 +251,7 @@ TH-4,tests/gui/test_main_window.py::test_theme_live_switch_no_restart,passed
 TH-5,tests/unit/test_theme_tokens.py::test_bundled_alternates_present_and_valid,passed
 TH-7,tests/gui/test_typography.py::test_type_scale_hierarchy_applied,passed
 TL-1,tests/integration/test_backend_verilator_native.py::test_native_backend_bit_identical_to_cocotb,passed
+TL-1,tests/integration/test_cli_cosim.py::test_cli_cosim_native_backend_json,passed
 TL-1,tests/unit/test_backend_select.py::test_active_harness_backend_reported,passed
 TL-2,tests/unit/test_svlint_verible.py::test_verible_backend_reported,skipped
 TL-2,tests/unit/test_svlint_verible.py::test_verible_cst_backend_parses_convention_file,skipped
@@ -288,6 +293,7 @@ WS-1,tests/unit/test_mat_loader.py::test_handles_v73_hdf5_and_legacy_mat,passed
 WS-1,tests/unit/test_mat_loader.py::test_nested_struct_walk_dotted_paths,passed
 WS-2,tests/unit/test_sv_struct.py::test_missing_software_pattern_raises,passed
 WS-2,tests/unit/test_sv_struct.py::test_software_struct_parsed_to_dotted_paths,passed
+WS-3,tests/unit/test_cli.py::test_cli_reconcile,passed
 WS-3,tests/unit/test_reconcile.py::test_exact_mode_quantized_bit_compare,passed
 WS-3,tests/unit/test_reconcile.py::test_missing_extra_shape_mismatch_reported,passed
 WS-3,tests/unit/test_reconcile.py::test_tolerance_mode_decimal_and_lsb,passed
@@ -295,5 +301,6 @@ WS-4,tests/unit/test_reconcile.py::test_hand_rounding_changes_quantized_code_fla
 WS-5,tests/integration/test_vector_oracle.py::test_fixedpoint_reference_allows_bitexact_mode,passed
 WS-5,tests/integration/test_vector_oracle.py::test_float_reference_reports_within_precision_not_bitexact,passed
 WS-5,tests/integration/test_vector_oracle.py::test_io_vectors_drive_cosim_stimulus,passed
+WS-5,tests/unit/test_cli.py::test_cli_oracle_float_within_precision,passed
 WS-6,tests/gui/test_inspector.py::test_software_field_value_shape_format_shown,passed
 WS-6,tests/unit/test_ranges_constants.py::test_struct_constants_become_point_ranges,passed

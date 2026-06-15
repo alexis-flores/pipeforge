@@ -4,8 +4,9 @@ Loads, together, the `.m` (→ DAG) and its `.sv` (→ module) plus the `.mat` a
 its SV ``software`` mirror, and presents MATLAB-side and SV-side entities side by
 side. Variable correspondences are **auto-proposed with a confidence tier**
 (MP-2); the user links, unlinks, or marks-unmapped to produce the authoritative,
-confirmed mapping the rest of the tool reads (MP-6). Operation grouping (MP-3) is
-manual and arrives in a later phase.
+confirmed mapping the rest of the tool reads (MP-6), persisted to the
+``pipeforge.map.json`` sidecar. Operation grouping (MP-3) is manual: pick a
+MATLAB op and one-or-more SV instances and group them.
 """
 
 from __future__ import annotations
@@ -13,8 +14,11 @@ from __future__ import annotations
 from pathlib import Path
 
 from PyQt6.QtWidgets import (
+    QAbstractItemView,
+    QComboBox,
     QHBoxLayout,
     QLabel,
+    QListWidget,
     QPushButton,
     QTableWidget,
     QTableWidgetItem,
@@ -26,6 +30,7 @@ from pipeforge.core.audit.engine import audit_source
 from pipeforge.core.costmodel.model import CostModel
 from pipeforge.core.frontend.dag import Dag
 from pipeforge.core.mapping.model import CorrespondenceMap
+from pipeforge.core.mapping.persist import load_map, save_map, sidecar_for
 from pipeforge.core.mapping.propose import Entity, propose_variables
 from pipeforge.core.mapping.sources import matlab_entities, sv_entities
 from pipeforge.core.mapping.validate import Coverage, coverage
@@ -87,11 +92,32 @@ class MappingView(QWidget):
         self.link_btn.clicked.connect(self._link_selected)
         self.unlink_btn.clicked.connect(self._unlink_selected)
         self.unmapped_btn.clicked.connect(self._mark_unmapped_selected)
+        self.save_btn = QPushButton("Save map")
+        self.load_btn = QPushButton("Load map")
+        self.save_btn.clicked.connect(lambda: self.save_sidecar())
+        self.load_btn.clicked.connect(lambda: self.load_sidecar())
         actions = QHBoxLayout()
         actions.addWidget(self.link_btn)
         actions.addWidget(self.unlink_btn)
         actions.addWidget(self.unmapped_btn)
         actions.addStretch(1)
+        actions.addWidget(self.save_btn)
+        actions.addWidget(self.load_btn)
+
+        # MP-3: manual operation grouping (one MATLAB op -> one-or-more instances)
+        self.ops_combo = QComboBox()
+        self.instances_list = QListWidget()
+        self.instances_list.setSelectionMode(QAbstractItemView.SelectionMode.MultiSelection)
+        self.instances_list.setMaximumHeight(90)
+        self.group_btn = QPushButton("Create group")
+        self.group_btn.clicked.connect(self._group_selected)
+        self.groups_label = QLabel()
+        self.groups_label.setObjectName("muted")
+        group_row = QHBoxLayout()
+        group_row.addWidget(QLabel("MATLAB op:"))
+        group_row.addWidget(self.ops_combo)
+        group_row.addWidget(self.group_btn)
+        group_row.addStretch(1)
 
         box = QVBoxLayout(self)
         box.addWidget(title)
@@ -101,6 +127,10 @@ class MappingView(QWidget):
         box.addWidget(self.map_table)
         box.addLayout(actions)
         box.addWidget(self.coverage_label)
+        box.addWidget(QLabel("Operation grouping (manual — select an op + SV instances):"))
+        box.addLayout(group_row)
+        box.addWidget(self.instances_list)
+        box.addWidget(self.groups_label)
 
     # -- loading ---------------------------------------------------------------
 
@@ -140,20 +170,61 @@ class MappingView(QWidget):
         _entity_rows(self.matlab_table, self._matlab)
         _entity_rows(self.sv_table, self._sv)
 
+        self.ops_combo.clear()
+        self.ops_combo.addItems(self.matlab_ops)
+        self.instances_list.clear()
+        self.instances_list.addItems(self.sv_instances)
+
         self.cmap = CorrespondenceMap(variables=propose_variables(self._matlab, self._sv))
         self._refill_map()
         self._refresh_coverage()
+        self._refresh_groups()
         self.meta.setText(
             f"{len(self._matlab)} MATLAB entities, {len(self._sv)} SV entities — "
             f"{len(self.cmap.variables)} proposed correspondences"
         )
 
+    # -- sidecar persistence (MP-6) -----------------------------------------
+
+    def _sidecar_path(self) -> Path:
+        m_path = getattr(self._ws, "m_path", None) if self._ws is not None else None
+        return sidecar_for(Path(m_path)) if m_path else Path("pipeforge.map.json")
+
+    def save_sidecar(self, path: Path | None = None) -> Path:
+        """Persist the confirmed correspondence to pipeforge.map.json (MP-6)."""
+        target = path or self._sidecar_path()
+        save_map(self.cmap, target)
+        self.meta.setText(f"saved correspondence to {target.name}")
+        return target
+
+    def load_sidecar(self, path: Path | None = None) -> None:
+        target = path or self._sidecar_path()
+        if target.is_file():
+            self.cmap = load_map(target)
+            self._refill_map()
+            self._refresh_coverage()
+            self._refresh_groups()
+
     def coverage_report(self) -> Coverage:
         """Ungrouped MATLAB ops and unassigned SV instances (MP-4)."""
         return coverage(self.cmap, self.matlab_ops, self.sv_instances)
 
+    def _group_selected(self) -> None:
+        op = self.ops_combo.currentText()
+        instances = [i.text() for i in self.instances_list.selectedItems()]
+        if op and instances:
+            self.add_group(op, instances)
+
+    def _refresh_groups(self) -> None:
+        if not self.cmap.groups:
+            self.groups_label.setText("No operation groups yet.")
+            return
+        lines = [f"{g.matlab_op} → {', '.join(g.sv_instances)}" for g in self.cmap.groups]
+        self.groups_label.setText("Groups: " + "; ".join(lines))
+
     def add_group(self, matlab_op: str, sv_instances: list[str]) -> None:
         self.cmap.add_group(matlab_op, sv_instances)
+        self._refresh_groups()
         self._refresh_coverage()
 
     def _refresh_coverage(self) -> None:

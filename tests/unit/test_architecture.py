@@ -75,6 +75,11 @@ EXPECTED_CLI_COMMANDS: set[str] = {
     "dse",
     "matlab",
     "demos",
+    # v1.1 cross-domain capabilities, now headless too
+    "reconcile",
+    "map",
+    "traceability",
+    "oracle",
 }
 
 

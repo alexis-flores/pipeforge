@@ -96,6 +96,15 @@ def _cmd_cosim(args: argparse.Namespace) -> int:
     cm = CostModel(args.width, args.scale)
     audit = audit_source(src, m_path.name, cm)
     work_dir = Path(args.work_dir) if args.work_dir else m_path.parent / "cosim_work"
+    probes: list[str] | None = None
+    if args.probes == "auto":
+        probes = [
+            nid
+            for nid in audit.dag.order
+            if audit.dag.nodes[nid].module not in ("", "input", "const", "reshape")
+        ]
+    elif args.probes:
+        probes = [p.strip() for p in args.probes.split(",") if p.strip()]
     try:
         result = run_cosim(
             audit,
@@ -105,15 +114,32 @@ def _cmd_cosim(args: argparse.Namespace) -> int:
             extra_sources=[Path(p) for p in (args.source or [])],
             include_dirs=[Path(p) for p in (args.include or [])],
             vector_count=args.vectors,
+            cadence=args.cadence,
+            backend=args.backend,
+            probes=probes,
+            bisect_on_failure=args.bisect,
         )
     except CosimUnavailable as exc:
         print(str(exc), file=sys.stderr)
         return 3
     if args.json:
-        print(json_mod.dumps(result.to_payload(), indent=2))
+        payload = result.to_payload()
+        payload["harness_backend"] = result.harness_backend
+        if result.bisect_report is not None:
+            r = result.bisect_report
+            payload["bisect"] = {
+                "diverged": r.diverged,
+                "node": r.node,
+                "instance": r.instance,
+                "classification": r.classification,
+                "inputs_matched": r.inputs_matched,
+                "message": r.message,
+            }
+        print(json_mod.dumps(payload, indent=2))
     else:
         verdict = "PASS" if result.passed else "FAIL"
-        print(f"cosim {m_path.name} vs {args.top}: {verdict}")
+        tag = f"{result.harness_backend}/{args.cadence}"
+        print(f"cosim {m_path.name} vs {args.top} [{tag}]: {verdict}")
         for o in result.outputs:
             if o.passed:
                 print(
@@ -128,6 +154,11 @@ def _cmd_cosim(args: argparse.Namespace) -> int:
                 )
         if not result.passed and not result.outputs:
             print("  build or simulation failed; see the log in " + result.work_dir)
+        if result.bisect_report is not None and result.bisect_report.diverged:
+            from pipeforge.core.diagnostics.triage import triage
+
+            summary = triage(result.bisect_report, None, audit.dag)
+            print(f"  triage: {summary.message}")
     return 0 if result.passed else 1
 
 
@@ -434,6 +465,265 @@ def _cmd_demos(_args: argparse.Namespace) -> int:
     return 0
 
 
+def _read(path_str: str) -> str | None:
+    try:
+        return Path(path_str).read_text(encoding="utf-8")
+    except OSError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return None
+
+
+def _fmt_vals(vals: tuple[float, ...] | None) -> str:
+    if vals is None:
+        return "-"
+    head = ", ".join(f"{v:.6g}" for v in vals[:3])
+    return f"[{head}{', …' if len(vals) > 3 else ''}]"
+
+
+def _cmd_reconcile(args: argparse.Namespace) -> int:
+    """WS-3/WS-4: reconcile a .mat against its SV `software` mirror."""
+    import json as json_mod
+
+    from pipeforge.core.fxp.fx import FxFormat
+    from pipeforge.core.mapping.persist import load_map
+    from pipeforge.core.workspace.mat_loader import load_mat
+    from pipeforge.core.workspace.reconcile import EXACT, TOLERANCE, reconcile
+    from pipeforge.core.workspace.sv_struct import SvStructError, load_sv_software
+
+    try:
+        mat = load_mat(args.mat)
+        sv = load_sv_software(args.sv)
+    except (OSError, ValueError, SvStructError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    cmap = load_map(Path(args.map)) if args.map else None
+    mode = TOLERANCE if args.mode == "tolerance" else EXACT
+    report = reconcile(
+        mat,
+        sv,
+        FxFormat(args.width, args.scale),
+        mode=mode,
+        decimals=args.decimals,
+        lsb_tol=args.lsb,
+        cmap=cmap,
+    )
+    if args.json:
+        print(
+            json_mod.dumps(
+                {
+                    "mode": report.mode,
+                    "fields": [
+                        {
+                            "path": f.path,
+                            "verdict": f.verdict,
+                            "delta": f.delta,
+                            "rounding_hazard": f.rounding_hazard,
+                            "mat": list(f.mat_value) if f.mat_value else None,
+                            "sv": list(f.sv_value) if f.sv_value else None,
+                        }
+                        for f in report.fields
+                    ],
+                },
+                indent=2,
+            )
+        )
+    else:
+        print(
+            f"reconcile {Path(args.mat).name} <-> {Path(args.sv).name} "
+            f"({report.mode} @ {args.width}/{args.scale})"
+        )
+        print(f"  {'PATH':<22} {'MAT':<16} {'SV':<16} {'VERDICT':<14} Δ")
+        for f in report.fields:
+            hazard = "  ⚠ rounding-hazard" if f.rounding_hazard else ""
+            print(
+                f"  {f.path:<22} {_fmt_vals(f.mat_value):<16} {_fmt_vals(f.sv_value):<16} "
+                f"{f.verdict:<14} {f.delta:.3g}{hazard}"
+            )
+        verdicts: dict[str, int] = {}
+        for f in report.fields:
+            verdicts[f.verdict] = verdicts.get(f.verdict, 0) + 1
+        summary = ", ".join(f"{n} {v}" for v, n in sorted(verdicts.items()))
+        haz = len(report.hazards)
+        print(f"  summary: {summary}" + (f", {haz} rounding-hazard(s)" if haz else ""))
+    return 1 if (report.mismatches or report.hazards) else 0
+
+
+def _entities_for_map(m_file: str | None, sv_file: str | None, mat_file: str | None, cm):
+    """Build (matlab_entities, sv_entities) from the loaded design sources (MP-2)."""
+    from pipeforge.core.audit.engine import audit_source
+    from pipeforge.core.mapping.sources import matlab_entities, sv_entities
+    from pipeforge.core.svlint.parse import parse_sv
+    from pipeforge.core.workspace.mat_loader import load_mat
+    from pipeforge.core.workspace.sv_struct import SvStructError, parse_sv_software
+
+    dag = audit_source(_read(m_file), Path(m_file).name, cm).dag if m_file else None
+    module = None
+    software = None
+    if sv_file:
+        sv_text = _read(sv_file) or ""
+        module = parse_sv(sv_text)[0]
+        try:
+            software = parse_sv_software(sv_text)
+        except SvStructError:
+            software = None
+    mat_tree = load_mat(mat_file) if mat_file else None
+    return matlab_entities(dag, mat_tree), sv_entities(module, software)
+
+
+def _cmd_map(args: argparse.Namespace) -> int:
+    """MP-2/MP-3/MP-6: propose, show, confirm, and group correspondences."""
+    import json as json_mod
+
+    from pipeforge.core.mapping.persist import load_map, save_map
+    from pipeforge.core.mapping.propose import propose_variables
+
+    if args.map_action == "propose":
+        from pipeforge.core.costmodel.model import CostModel
+        from pipeforge.core.mapping.model import CorrespondenceMap
+
+        cm = CostModel(args.width, args.scale)
+        matlab, sv = _entities_for_map(args.m, args.sv, args.mat, cm)
+
+        cmap = CorrespondenceMap(variables=propose_variables(matlab, sv))
+        out = Path(args.output)
+        save_map(cmap, out)
+        print(f"map propose: {len(matlab)} MATLAB, {len(sv)} SV entities — wrote {out}")
+        print(f"  {'MATLAB':<18} {'SV':<18} CONFIDENCE")
+        for v in cmap.variables:
+            print(f"  {v.matlab or '-':<18} {v.sv or '-':<18} {v.confidence}")
+        return 0
+
+    sidecar = Path(args.sidecar)
+    cmap = load_map(sidecar)
+    if args.map_action == "show":
+        if args.json:
+            from pipeforge.core.mapping.persist import to_dict
+
+            print(json_mod.dumps(to_dict(cmap), indent=2))
+            return 0
+        confirmed = cmap.confirmed()
+        print(
+            f"map {sidecar.name} — {len(confirmed)} confirmed, "
+            f"{len(cmap.variables) - len(confirmed)} unconfirmed, {len(cmap.groups)} group(s)"
+        )
+        for v in cmap.variables:
+            print(f"  [{v.status:<9}] {v.matlab or '-'} -> {v.sv or '-'}  ({v.confidence})")
+        for g in cmap.groups:
+            mark = "confirmed" if g.confirmed else "draft"
+            print(f"  group {g.matlab_op} -> {g.sv_instances}  ({mark})")
+        return 0
+    if args.map_action == "confirm":
+        cmap.link(args.matlab, args.sv_entity)
+        save_map(cmap, sidecar)
+        print(f"confirmed {args.matlab} -> {args.sv_entity} in {sidecar.name}")
+        return 0
+    if args.map_action == "group":
+        cmap.add_group(args.matlab_op, list(args.instances))
+        save_map(cmap, sidecar)
+        print(f"grouped {args.matlab_op} -> {list(args.instances)} in {sidecar.name}")
+        return 0
+    return 2
+
+
+def _cmd_traceability(args: argparse.Namespace) -> int:
+    """DX-2: export the MATLAB↔RTL correspondence as Markdown/CSV."""
+    from pipeforge.core.costmodel.model import CostModel
+    from pipeforge.core.diagnostics.traceability import export_traceability
+    from pipeforge.core.frontend.dag import build_dag
+    from pipeforge.core.frontend.parser import parse_program
+    from pipeforge.core.mapping.persist import load_map
+    from pipeforge.core.svlint.parse import parse_sv
+
+    cm = CostModel(args.width, args.scale)
+    m_src = _read(args.m)
+    sv_src = _read(args.sv)
+    if m_src is None or sv_src is None:
+        return 2
+    assigns, _ = parse_program(m_src)
+    dag = build_dag(assigns, cm)[0].dag
+    module = parse_sv(sv_src)[0]
+    cmap = load_map(Path(args.sidecar))
+    doc = export_traceability(cmap, dag, module, cm, fmt=args.format)
+    if args.output:
+        Path(args.output).write_text(doc, encoding="utf-8")
+        print(f"wrote {args.output}")
+    else:
+        print(doc, end="")
+    return 0
+
+
+def _cmd_oracle(args: argparse.Namespace) -> int:
+    """WS-5: drive the golden model with a .mat's I/O vectors and grade it."""
+    import json as json_mod
+
+    from pipeforge.core.audit.engine import audit_source
+    from pipeforge.core.cosim.oracle import REFERENCE_FIXED, REFERENCE_FLOAT, run_vector_oracle
+    from pipeforge.core.costmodel.model import CostModel
+    from pipeforge.core.fxp.fx import FxFormat
+    from pipeforge.core.workspace.mat_loader import load_mat
+
+    m_src = _read(args.file)
+    if m_src is None:
+        return 2
+    cm = CostModel(args.width, args.scale)
+    audit = audit_source(m_src, Path(args.file).name, cm)
+    try:
+        tree = load_mat(args.mat)
+    except (OSError, ValueError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    # convention: .mat fields named like a DAG input feed it; fields named like
+    # an output signal are the reference outputs.
+    in_labels = {n.label for n in audit.dag.inputs()}
+    out_signals = {n.signal for n in audit.dag.outputs() if n.signal}
+    inputs = {p: list(f.values) for p, f in tree.fields.items() if p in in_labels and f.values}
+    references = {
+        p: list(f.values) for p, f in tree.fields.items() if p in out_signals and f.values
+    }
+    if not inputs:
+        print(
+            f"error: no .mat fields match the script's inputs ({sorted(in_labels)})",
+            file=sys.stderr,
+        )
+        return 2
+    kind = REFERENCE_FIXED if args.reference == "fixed" else REFERENCE_FLOAT
+    result = run_vector_oracle(audit, inputs, references, FxFormat(args.width, args.scale), kind)
+    if args.json:
+        print(
+            json_mod.dumps(
+                {
+                    "reference_kind": result.reference_kind,
+                    "mode": result.mode,
+                    "passed": result.passed,
+                    "outputs": {
+                        k: {
+                            "max_abs_error": s.max_abs_error,
+                            "rms_error": s.rms_error,
+                            "sqnr_db": s.sqnr_db,
+                        }
+                        for k, s in result.outputs.items()
+                    },
+                    "bit_exact": result.bit_exact,
+                },
+                indent=2,
+            )
+        )
+    else:
+        print(
+            f"oracle {Path(args.file).name} vs {Path(args.mat).name} — "
+            f"reference: {result.reference_kind} ({result.mode})"
+        )
+        for sig, stats in result.outputs.items():
+            be = f", bit-exact: {result.bit_exact.get(sig)}" if kind == REFERENCE_FIXED else ""
+            print(
+                f"  {sig}: max|e| {stats.max_abs_error:.3g}, RMS {stats.rms_error:.3g}, "
+                f"SQNR {stats.sqnr_db:.1f} dB{be}"
+            )
+        if result.passed is None:
+            print("  (float reference — within-precision only; no bit-exact verdict)")
+    return 1 if result.passed is False else 0
+
+
 def _add_fixedp_args(p: argparse.ArgumentParser) -> None:
     p.add_argument("-w", "--width", type=int, default=16, help="fixedp WIDTH (default 16)")
     p.add_argument("-s", "--scale", type=int, default=12, help="fixedp SCALE (default 12)")
@@ -492,6 +782,28 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_cosim.add_argument("--vectors", type=int, default=256, help="stimulus vector count")
     p_cosim.add_argument("--work-dir", help="working directory for generated collateral")
+    p_cosim.add_argument(
+        "--backend",
+        choices=("cocotb", "verilator"),
+        default="cocotb",
+        help="harness backend: cocotb (default) or the cocotb-free verilator-native path (TL-1)",
+    )
+    p_cosim.add_argument(
+        "--cadence",
+        choices=("continuous", "gapped", "single", "restart"),
+        default="continuous",
+        help="valid-driving cadence (CS-6)",
+    )
+    p_cosim.add_argument(
+        "--probes",
+        metavar="auto|IDS",
+        help="capture internal signals: 'auto' (all ops) or comma-separated node ids (CS-7)",
+    )
+    p_cosim.add_argument(
+        "--bisect",
+        action="store_true",
+        help="on failure, localize the first divergent stage + print triage (BI-4/DX-1)",
+    )
     _add_fixedp_args(p_cosim)
     p_cosim.add_argument("--json", action="store_true", help="emit JSON instead of text")
     p_cosim.set_defaults(func=_cmd_cosim)
@@ -571,6 +883,71 @@ def build_parser() -> argparse.ArgumentParser:
     p_val.add_argument("--force", action="store_true", help="retake the snapshot")
     _add_fixedp_args(p_val)
     p_matlab.set_defaults(func=_cmd_matlab)
+
+    p_recon = sub.add_parser(
+        "reconcile", help="reconcile a .mat workspace against its SV `software` mirror (WS-3/4)"
+    )
+    p_recon.add_argument("mat", help="MATLAB workspace file (.mat)")
+    p_recon.add_argument("sv", help="SystemVerilog file containing the `software` struct")
+    p_recon.add_argument(
+        "--mode",
+        choices=("exact", "tolerance"),
+        default="exact",
+        help="exact (quantized bit-compare) or tolerance",
+    )
+    p_recon.add_argument("--decimals", type=int, help="tolerance: equal to N decimal places")
+    p_recon.add_argument("--lsb", type=int, help="tolerance: within N LSBs")
+    p_recon.add_argument("--map", metavar="SIDECAR", help="confirmed map to align renamed fields")
+    _add_fixedp_args(p_recon)
+    p_recon.add_argument("--json", action="store_true", help="emit JSON instead of text")
+    p_recon.set_defaults(func=_cmd_reconcile)
+
+    p_map = sub.add_parser("map", help="MATLAB↔SV correspondence map (propose/show/confirm/group)")
+    map_sub = p_map.add_subparsers(dest="map_action", metavar="action", required=True)
+    mp = map_sub.add_parser("propose", help="auto-propose variable correspondences (MP-2)")
+    mp.add_argument("--m", help="MATLAB script (.m)")
+    mp.add_argument("--sv", help="SystemVerilog file (.sv)")
+    mp.add_argument("--mat", help="optional .mat workspace")
+    mp.add_argument("-o", "--output", default="pipeforge.map.json", help="sidecar to write")
+    _add_fixedp_args(mp)
+    ms = map_sub.add_parser("show", help="print a sidecar map")
+    ms.add_argument("sidecar", help="pipeforge.map.json")
+    ms.add_argument("--json", action="store_true")
+    mc = map_sub.add_parser("confirm", help="confirm a variable mapping (MP-2/MP-6)")
+    mc.add_argument("sidecar")
+    mc.add_argument("matlab")
+    mc.add_argument("sv_entity", metavar="sv")
+    mg = map_sub.add_parser("group", help="group a MATLAB op to SV instances (MP-3)")
+    mg.add_argument("sidecar")
+    mg.add_argument("matlab_op")
+    mg.add_argument("instances", nargs="+", help="SV instance name(s)")
+    p_map.set_defaults(func=_cmd_map)
+
+    p_trace = sub.add_parser(
+        "traceability", help="export the MATLAB↔RTL correspondence as Markdown/CSV (DX-2)"
+    )
+    p_trace.add_argument("sidecar", help="pipeforge.map.json")
+    p_trace.add_argument("--m", required=True, help="MATLAB script (.m)")
+    p_trace.add_argument("--sv", required=True, help="SystemVerilog file (.sv)")
+    p_trace.add_argument("--format", choices=("markdown", "csv"), default="markdown")
+    p_trace.add_argument("-o", "--output", help="write to file instead of stdout")
+    _add_fixedp_args(p_trace)
+    p_trace.set_defaults(func=_cmd_traceability)
+
+    p_oracle = sub.add_parser(
+        "oracle", help="drive the golden model with a .mat's I/O vectors as ground truth (WS-5)"
+    )
+    p_oracle.add_argument("file", help="MATLAB script (.m)")
+    p_oracle.add_argument("--mat", required=True, help=".mat with input/output vectors")
+    p_oracle.add_argument(
+        "--reference",
+        choices=("float", "fixed"),
+        default="float",
+        help="float -> within-precision (SQNR); fixed -> bit-exact allowed (§10)",
+    )
+    _add_fixedp_args(p_oracle)
+    p_oracle.add_argument("--json", action="store_true")
+    p_oracle.set_defaults(func=_cmd_oracle)
 
     p_demos = sub.add_parser(
         "demos", help="list the packaged demos with paths and suggested commands"

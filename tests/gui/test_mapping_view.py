@@ -93,3 +93,37 @@ def test_coverage_meter_unmapped_instances_and_ops(qtbot: QtBot) -> None:
     assert op not in cov2.ungrouped_ops
     assert inst not in cov2.unassigned_instances
     assert "ungrouped" in view.coverage_label.text()
+
+
+@pytest.mark.req("MP-6")
+def test_sidecar_save_load_roundtrip_in_gui(qtbot: QtBot, tmp_path: Path) -> None:
+    view = MappingView()
+    qtbot.addWidget(view)
+    view.load(m_source=M_SRC, sv_source=SV_SRC)
+    view.link("a", "a_0")  # user confirms a mapping
+    sidecar = tmp_path / "pipeforge.map.json"
+    view.save_sidecar(sidecar)
+    assert sidecar.is_file()  # persisted to disk (MP-6)
+
+    fresh = MappingView()
+    qtbot.addWidget(fresh)
+    fresh.load(m_source=M_SRC, sv_source=SV_SRC)
+    assert fresh.cmap.resolve("a") is None  # not confirmed in the fresh view
+    fresh.load_sidecar(sidecar)
+    assert fresh.cmap.resolve("a") == "a_0"  # confirmed mapping restored
+
+
+@pytest.mark.req("MP-3")
+def test_operation_grouping_in_gui(qtbot: QtBot) -> None:
+    view = MappingView()
+    qtbot.addWidget(view)
+    view.load(m_source=M_SRC, sv_source=SV_SRC)
+    assert view.ops_combo.count() == len(view.matlab_ops) > 0  # ops offered
+    assert view.instances_list.count() == len(view.sv_instances)
+
+    op = view.matlab_ops[0]
+    view.ops_combo.setCurrentText(op)
+    view.instances_list.item(0).setSelected(True)
+    view._group_selected()
+    assert view.cmap.group_for(op) is not None  # manual group created
+    assert op not in view.coverage_report().ungrouped_ops  # coverage updated
