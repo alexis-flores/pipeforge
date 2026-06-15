@@ -49,6 +49,7 @@ CAPABILITIES = [
     ("linter", "Linter", "✓"),
     ("codegen", "Codegen", "⚙"),
     ("dse", "Exploration", "✦"),
+    ("mapping", "Correspondence", "⇄"),
     ("settings", "Settings", "⚒"),
 ]
 
@@ -91,9 +92,9 @@ class MainWindow(QMainWindow):
         self.workspace.snapshotChanged.connect(lambda _s: self._on_selection(""))
         self.workspace.snapshotChanged.connect(lambda _s: self._sync_matlab_chip())
         self.workspace.auditChanged.connect(self._on_audit)
+        self.workspace.auditChanged.connect(lambda _a: self._refresh_mapping())
         self.workspace.fileChanged.connect(self._on_file)
         self.workspace.formatChanged.connect(lambda _w, _s: self._update_chips())
-        self.workspace.formatChanged.connect(lambda _w, _s: self.animate_chip())  # MO-3
         self.workspace.selectionChanged.connect(self._on_selection)
         self.themes.themeChanged.connect(self._on_theme)
         self._on_theme(self.themes.theme)
@@ -129,8 +130,10 @@ class MainWindow(QMainWindow):
             "with all PIPE/valid bookkeeping computed automatically.",
         )
         from pipeforge.gui.views.dse_view import DseView
+        from pipeforge.gui.views.mapping_view import MappingView
 
         self.views["dse"] = DseView(self.workspace)
+        self.views["mapping"] = MappingView(self.workspace)
         self.views["settings"] = SettingsView(self.workspace, self.themes)
         for name, _label, _icon in CAPABILITIES:
             self.stack.addWidget(self.views[name])
@@ -249,6 +252,9 @@ class MainWindow(QMainWindow):
     def _build_inspector(self) -> None:
         self.inspector = QDockWidget("Inspector")
         self.inspector.setObjectName("inspector")
+        # docked only: never floats or detaches into a dead window (collapse is
+        # via toggle_inspector / setVisible)
+        self.inspector.setFeatures(QDockWidget.DockWidgetFeature.NoDockWidgetFeatures)
         panel = QWidget()
         box = QVBoxLayout(panel)
         box.setContentsMargins(12, 12, 12, 12)
@@ -271,6 +277,7 @@ class MainWindow(QMainWindow):
 
     def _build_console(self) -> None:
         self.console_dock = QDockWidget("Console")
+        self.console_dock.setFeatures(QDockWidget.DockWidgetFeature.NoDockWidgetFeatures)
         self.console = QPlainTextEdit()
         self.console.setReadOnly(True)
         self.console_dock.setWidget(self.console)
@@ -348,28 +355,14 @@ class MainWindow(QMainWindow):
 
     # -- behavior --------------------------------------------------------------
 
-    def _cross_fade(self, widget: QWidget) -> None:
-        """Cross-fade a view into place rather than a hard cut (MO-2)."""
-        from PyQt6.QtCore import QPropertyAnimation
-        from PyQt6.QtWidgets import QGraphicsOpacityEffect
-
-        from pipeforge.gui.widgets.timeline import MOTION_MS
-
-        effect = QGraphicsOpacityEffect(widget)
-        widget.setGraphicsEffect(effect)
-        anim = QPropertyAnimation(effect, b"opacity", self)
-        anim.setDuration(MOTION_MS)
-        anim.setStartValue(0.0)
-        anim.setEndValue(1.0)
-        anim.start()
-        self._fade_anim = anim
-
     def show_view(self, name: str) -> None:
         names = [c[0] for c in CAPABILITIES]
         if name in names:
+            # NOTE: the MO-2 opacity-effect cross-fade was removed — QGraphicsOpacityEffect
+            # renders custom-painted views (timeline) and scroll areas black. View
+            # switching is an instant, reliable set.
             self.stack.setCurrentIndex(names.index(name))
             self.nav_buttons[name].setChecked(True)
-            self._cross_fade(self.views[name])
             # UI-8: an unmistakable accent edge bar on the active item
             for n, btn in self.nav_buttons.items():
                 btn.setProperty("active", n == name)
@@ -410,25 +403,32 @@ class MainWindow(QMainWindow):
             )
         self._update_chips()
 
+    def _refresh_mapping(self) -> None:
+        """Populate the correspondence view from the current workspace (best-effort)."""
+        view = self.views.get("mapping")
+        if view is None or not hasattr(view, "load"):
+            return
+        sv_source = None
+        if self.workspace.sv_path is not None:
+            try:
+                sv_source = self.workspace.sv_path.read_text(encoding="utf-8", errors="replace")
+            except OSError:
+                sv_source = None
+        try:
+            view.load(
+                m_source=self.workspace.source or None,
+                sv_source=sv_source,
+                mat_path=self.workspace.mat_path,
+                width=self.workspace.width,
+                scale=self.workspace.scale,
+            )
+        except Exception as exc:  # never let the mapping view break the window (NF-4)
+            self.log(f"mapping: could not refresh — {exc}")
+
     def _update_chips(self) -> None:
+        # MO-3: an Adopt is made perceptible by the chip's value change; the
+        # opacity-effect animation was removed (it races with teardown).
         self.format_chip.setText(f"{self.workspace.width}/{self.workspace.scale}")
-
-    def animate_chip(self) -> object:
-        """Animate the WIDTH/SCALE chip so an Adopt is perceptible (MO-3)."""
-        from PyQt6.QtCore import QPropertyAnimation
-        from PyQt6.QtWidgets import QGraphicsOpacityEffect
-
-        from pipeforge.gui.widgets.timeline import MOTION_MS
-
-        effect = QGraphicsOpacityEffect(self.format_chip)
-        self.format_chip.setGraphicsEffect(effect)
-        anim = QPropertyAnimation(effect, b"opacity", self)
-        anim.setDuration(MOTION_MS)
-        anim.setStartValue(0.2)
-        anim.setEndValue(1.0)
-        anim.start()
-        self._chip_anim = anim
-        return anim
 
     def _update_tool_dots(self) -> None:
         tools = detect_tools()

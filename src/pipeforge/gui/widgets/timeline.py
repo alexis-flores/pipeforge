@@ -9,23 +9,12 @@ from __future__ import annotations
 
 from itertools import pairwise
 
-from PyQt6.QtCore import (
-    QEasingCurve,
-    QPointF,
-    QPropertyAnimation,
-    QRectF,
-    Qt,
-    pyqtProperty,
-    pyqtSignal,
-)
+from PyQt6.QtCore import QPointF, QRectF, Qt, pyqtSignal
 from PyQt6.QtGui import QColor, QFont, QMouseEvent, QPainter, QPen
 from PyQt6.QtWidgets import QSizePolicy, QWidget
 
 from pipeforge.core.viz.layout import Layout
 from pipeforge.gui.theme.tokens import Theme
-
-#: ease-out motion budget per animation cycle (5.1: 120-180ms).
-MOTION_MS = 160
 
 _CYCLE_PX = 12.0
 _ROW_PX = 32.0  # 8px-grid row pitch with breathing room (VZ-5)
@@ -79,8 +68,6 @@ class TimelineWidget(QWidget):
         self._golden: dict[str, int] = {}  # nid -> golden value at cursor (VZ-7)
         self._rtl: dict[str, int] = {}  # nid -> observed RTL value (VZ-7)
         self._flash_nid = ""  # transient coupling-cue node (VZ-2a)
-        self._pulse = 0.4  # critical-path pulse level (MO-1)
-        self._pulse_anim: QPropertyAnimation | None = None
         self.setMinimumHeight(120)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
@@ -238,28 +225,18 @@ class TimelineWidget(QWidget):
     def density(self) -> str:
         return self._density
 
-    # -- critical-path pulse (MO-1) -----------------------------------------
+    # -- critical-path emphasis (MO-1) --------------------------------------
 
-    def _get_pulse(self) -> float:
-        return self._pulse
+    def critical_nodes(self) -> set[str]:
+        """Nodes on the critical path, emphasized statically in paint (MO-1).
 
-    def _set_pulse(self, value: float) -> None:
-        self._pulse = value
-        self.update()
-
-    pulseLevel = pyqtProperty(float, _get_pulse, _set_pulse)
-
-    def start_pulse(self) -> QPropertyAnimation:
-        """A slow, low-amplitude pulse drawing the eye to the critical path (MO-1)."""
-        anim = QPropertyAnimation(self, b"pulseLevel", self)
-        anim.setDuration(MOTION_MS)  # per-cycle, within the 120-180ms budget
-        anim.setStartValue(0.4)
-        anim.setEndValue(1.0)
-        anim.setEasingCurve(QEasingCurve.Type.OutCubic)
-        anim.setLoopCount(-1)
-        anim.start()
-        self._pulse_anim = anim
-        return anim
+        NOTE: the earlier infinite QPropertyAnimation pulse was removed — a
+        forever-running animation races with widget teardown (segfault) and the
+        static red glow already draws the eye. Emphasis is now paint-only.
+        """
+        if self._layout is None:
+            return set()
+        return {b.nid for b in self._layout.boxes.values() if b.on_critical_path}
 
     def _row_px(self) -> float:
         return 24.0 if self._density == "compact" else _ROW_PX

@@ -29,8 +29,9 @@ def window(qtbot: QtBot) -> MainWindow:
 
 @pytest.mark.req("UI-1")
 def test_sidebar_has_eight_capabilities_plus_settings(window: MainWindow) -> None:
-    assert len(CAPABILITIES) == 9
+    assert len(CAPABILITIES) == 10  # + Correspondence (MP) view
     assert [c[0] for c in CAPABILITIES][-1] == "settings"
+    assert "mapping" in {c[0] for c in CAPABILITIES}
     assert set(window.nav_buttons) == {c[0] for c in CAPABILITIES}
 
 
