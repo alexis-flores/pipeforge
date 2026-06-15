@@ -246,6 +246,10 @@ TH-3,tests/unit/test_theme_tokens.py::test_malformed_theme_fails_validation,pass
 TH-4,tests/gui/test_main_window.py::test_theme_live_switch_no_restart,passed
 TH-5,tests/unit/test_theme_tokens.py::test_bundled_alternates_present_and_valid,passed
 TH-7,tests/gui/test_typography.py::test_type_scale_hierarchy_applied,passed
+TL-1,tests/integration/test_backend_verilator_native.py::test_native_backend_bit_identical_to_cocotb,passed
+TL-1,tests/unit/test_backend_select.py::test_active_harness_backend_reported,passed
+TL-2,tests/unit/test_svlint_verible.py::test_verible_backend_reported,skipped
+TL-2,tests/unit/test_svlint_verible.py::test_verible_cst_backend_parses_convention_file,skipped
 UI-1,tests/gui/test_main_window.py::test_sidebar_has_eight_capabilities_plus_settings,passed
 UI-10,tests/gui/test_states.py::test_dse_sweep_shows_live_pareto,passed
 UI-10,tests/gui/test_states.py::test_zero_findings_shows_clean_affirmation,passed
@@ -261,6 +265,9 @@ UI-8,tests/gui/test_sidebar.py::test_active_item_has_accent_indicator,passed
 UI-8,tests/gui/test_sidebar.py::test_sidebar_items_have_labels_or_tooltips,passed
 UI-9,tests/gui/test_density.py::test_density_persists_across_session,passed
 UI-9,tests/gui/test_density.py::test_density_toggle_changes_sizing,passed
+VT-1,tests/property/test_dag_differential.py::test_random_dag_codegen_matches_golden,passed
+VT-1,tests/property/test_dag_differential.py::test_skipped_without_verilator,passed
+VT-2,tests/property/test_dag_differential.py::test_failing_case_shrinks_to_minimal_dag,passed
 VZ-1,tests/gui/test_polish.py::test_slack_overlay_toggle,passed
 VZ-1,tests/unit/test_viz.py::test_critical_path_and_dividers_marked,passed
 VZ-1,tests/unit/test_viz.py::test_timeline_axis_is_cycles,passed

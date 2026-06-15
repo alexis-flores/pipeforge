@@ -203,21 +203,75 @@ def _pyslang_module(node: object, text: str) -> SvModule:
 
 
 # ---------------------------------------------------------------------------
+# Verible CST backend (TL-2, optional)
+# ---------------------------------------------------------------------------
+
+
+def verible_available() -> bool:
+    import shutil
+
+    return shutil.which("verible-verilog-syntax") is not None
+
+
+def _parse_verible(text: str) -> SvModule | None:
+    """Validate the file with Verible's CST exporter, then build the structural
+    model (TL-2). Verible adds a sturdier syntax gate than the regex fallback for
+    convention-scoped checks; on any Verible error we fall back (returns None)."""
+    import json as _json
+    import subprocess
+    import tempfile
+
+    if not verible_available():
+        return None
+    try:
+        with tempfile.NamedTemporaryFile("w", suffix=".sv", delete=True) as fh:
+            fh.write(text)
+            fh.flush()
+            proc = subprocess.run(
+                ["verible-verilog-syntax", "--export_json", fh.name],
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+        if proc.returncode != 0 or not proc.stdout:
+            return None
+        doc = _json.loads(proc.stdout)
+        # a parsed CST with no syntax errors is the gate; convention-scoped
+        # extraction reuses the proven structural model on the same text
+        for info in doc.values():
+            if isinstance(info, dict) and info.get("errors"):
+                return None
+    except (OSError, subprocess.SubprocessError, ValueError):
+        return None
+    return parse_structural(text)
+
+
+# ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
 
 
-def parse_sv(text: str, prefer_pyslang: bool = True) -> tuple[SvModule, str]:
-    """Parse to the structural model; returns (module, backend_name) (SL-1)."""
+def parse_sv(
+    text: str, prefer_pyslang: bool = True, backend: str | None = None
+) -> tuple[SvModule, str]:
+    """Parse to the structural model; returns (module, backend_name) (SL-1).
+
+    `backend='verible'` selects the optional Verible CST backend when available
+    (TL-2); otherwise selection follows the pyslang/structural pattern.
+    """
     pipes = extract_pipes(strip_comments(text))
     module: SvModule | None = None
-    backend = "structural"
-    if prefer_pyslang:
+    backend_name = "structural"
+    if backend == "verible":
+        module = _parse_verible(text)
+        if module is not None:
+            backend_name = "verible"
+    if module is None and prefer_pyslang:
         module = _parse_pyslang(text)
         if module is not None:
-            backend = "pyslang"
+            backend_name = "pyslang"
     if module is None:
         module = parse_structural(text)
-        backend = "structural"
+        backend_name = "structural"
     module.pipes = pipes
-    return module, backend
+    return module, backend_name

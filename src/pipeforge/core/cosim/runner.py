@@ -55,6 +55,7 @@ class CosimResult:
     capture_backend: str = ""  # 'probe' | 'trace' | '' (CS-7/CS-8)
     observations: Observations = field(default_factory=dict)  # node id -> streams
     bisect_report: BisectReport | None = None  # populated on failure (BI-4)
+    harness_backend: str = "cocotb"  # 'cocotb' | 'verilator' (TL-1)
 
     def to_payload(self) -> dict[str, object]:
         return {
@@ -76,6 +77,17 @@ class CosimResult:
                 for o in self.outputs
             ],
         }
+
+
+HARNESS_BACKENDS = ("cocotb", "verilator")
+
+
+def select_harness_backend(requested: str | None = None) -> str:
+    """Resolve the harness backend; cocotb is the default until native parity
+    is demonstrated (TL-1, mirroring the SL-1 reporting pattern)."""
+    if requested in HARNESS_BACKENDS:
+        return requested
+    return "cocotb"
 
 
 def check_tools() -> None:
@@ -152,19 +164,25 @@ def run_cosim(
     vectors: list[Vector] | None = None,
     probes: list[str] | None = None,
     bisect_on_failure: bool = False,
+    backend: str | None = None,
 ) -> CosimResult:
     """Build with Verilator via the cocotb runner and compare (CS-1c, CS-3, CS-6).
 
     `vectors` overrides synthetic stimulus with ground-truth inputs (WS-5).
     `probes` (DAG node ids) are captured from the DUT's probe ports into the
     result's Observations (CS-7); with `bisect_on_failure`, a failing run is
-    localized automatically (BI-4).
+    localized automatically (BI-4). `backend` selects the harness: 'cocotb'
+    (default) or the cocotb-free 'verilator' native path (TL-1).
     """
-    check_tools()
     fmt = FxFormat(audit.cm.width, audit.cm.scale)
     inputs = [n.label for n in audit.dag.inputs()]
     if vectors is None:
         vectors = generate_stimulus(inputs, fmt, count=vector_count)
+    if select_harness_backend(backend) == "verilator":
+        return _run_native(
+            audit, dut_sv, dut_module, work_dir, extra_sources, include_dirs, vectors
+        )
+    check_tools()
     probe_nids = probes or []
     probe_bases = [probe_port(nid) for nid in probe_nids]
     spec = write_harness(audit, dut_module, vectors, work_dir, cadence=cadence, probes=probe_bases)
@@ -232,4 +250,74 @@ runner.test(hdl_toplevel="tb_wrapper", test_module="tb_cosim")
     if not result.passed and bisect_on_failure and result.observations:
         stimulus = [{k: v for k, v in vec.items()} for vec in vectors]
         result.bisect_report = bisect(audit.dag, stimulus, result.observations, fmt)
+    return result
+
+
+def _run_native(
+    audit: Audit,
+    dut_sv: Path,
+    dut_module: str,
+    work_dir: Path,
+    extra_sources: list[Path] | None,
+    include_dirs: list[Path] | None,
+    vectors: list[Vector],
+) -> CosimResult:
+    """Verilator-native harness: a pure-SV self-driving testbench, no cocotb (TL-1)."""
+    from pipeforge.core.cosim.harness import write_native_collateral
+
+    if shutil.which("verilator") is None:
+        raise CosimUnavailable(
+            "The Verilator-native backend needs Verilator "
+            "(install: pacman -S verilator / apt install verilator)."
+        )
+    fmt = FxFormat(audit.cm.width, audit.cm.scale)
+    spec = write_native_collateral(audit, dut_module, vectors, work_dir)
+    sources = [
+        str(dut_sv.resolve()),
+        *[str(s.resolve()) for s in (extra_sources or [])],
+        "tb_native.sv",
+    ]
+    includes = [f"-I{i.resolve()}" for i in (include_dirs or [])]
+    build = subprocess.run(
+        [
+            "verilator",
+            "--binary",
+            "--build",
+            "-Wno-fatal",
+            "--top-module",
+            "tb_native",
+            "-o",
+            "sim",
+            *includes,
+            *sources,
+        ],
+        cwd=work_dir,
+        capture_output=True,
+        text=True,
+        timeout=600,
+    )
+    result = CosimResult(
+        passed=False,
+        latency_expected=spec.latency,
+        log=build.stdout + build.stderr,
+        work_dir=str(work_dir),
+        harness_backend="verilator",
+    )
+    sim = work_dir / "obj_dir" / "sim"
+    if build.returncode != 0 or not sim.is_file():
+        return result
+    run = subprocess.run([str(sim)], cwd=work_dir, capture_output=True, text=True, timeout=600)
+    result.log += run.stdout + run.stderr
+    actual_path = work_dir / "actual.txt"
+    if not actual_path.is_file():
+        return result
+    actual: dict[str, list[int]] = {n: [] for n in spec.outputs}
+    for line in actual_path.read_text(encoding="utf-8").splitlines():
+        parts = line.split()
+        if len(parts) == len(spec.outputs):
+            for name, value in zip(spec.outputs, parts, strict=True):
+                actual[name].append(int(value))
+    expected = json.loads((work_dir / "expected.json").read_text(encoding="utf-8"))["outputs"]
+    result.outputs = compare_streams(audit, vectors, expected, actual, fmt)
+    result.passed = all(o.passed for o in result.outputs)
     return result
