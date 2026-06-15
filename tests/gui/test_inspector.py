@@ -51,6 +51,21 @@ def test_inspector_not_full_file_dump(qtbot: QtBot, tmp_path: Path) -> None:
     assert "gamma" not in win.inspector_label.text()
 
 
+@pytest.mark.req("UI-11")
+def test_inspector_collapsible_and_persisted(qtbot: QtBot) -> None:
+    ws = Workspace()
+    win = MainWindow(ws, ThemeManager(None))
+    qtbot.addWidget(win)
+    assert not win.inspector.isHidden()  # expanded by default
+    win.toggle_inspector()
+    assert win.inspector.isHidden()  # collapsed, reclaiming space
+    assert win.workspace.inspector_collapsed is True
+    # the collapsed state persists into a new window built on the same workspace
+    win2 = MainWindow(ws, ThemeManager(None))
+    qtbot.addWidget(win2)
+    assert win2.inspector.isHidden()
+
+
 @pytest.mark.req("WS-6")
 def test_software_field_value_shape_format_shown(qtbot: QtBot, tmp_path: Path) -> None:
     win = _window(qtbot)

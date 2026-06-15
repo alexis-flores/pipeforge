@@ -201,6 +201,21 @@ class DseView(QWidget):
         self.progress.setVisible(False)
         self.set_points(points)
 
+    # -- live-filling sweep (UI-10) ----------------------------------------------
+
+    def begin_live(self) -> None:
+        """Start a live sweep: clear the panel so points fill in as they arrive."""
+        self._live: list[SweepPoint] = []
+        self.set_points([])
+
+    def add_partial_point(self, point: SweepPoint) -> None:
+        """Append one result and re-render — the Pareto front fills live, never
+        a frozen panel (UI-10)."""
+        if not hasattr(self, "_live"):
+            self._live = []
+        self._live.append(point)
+        self.set_points(self._live)
+
     # -- presentation -------------------------------------------------------------
 
     def set_points(self, points: list[SweepPoint]) -> None:

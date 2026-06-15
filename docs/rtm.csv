@@ -172,6 +172,9 @@ FX-5,tests/unit/test_fxp_ops.py::TestUsqrt::test_usqrt_monotone,passed
 FX-5,tests/unit/test_fxp_ops.py::TestWrapConsistency::test_abs_nonnegative_or_wrapped_min,passed
 FX-5,tests/unit/test_fxp_ops.py::TestWrapConsistency::test_add_sub_wrap,passed
 FX-5,tests/unit/test_fxp_ops.py::TestWrapConsistency::test_neg_involution,passed
+MO-1,tests/gui/test_motion.py::test_critical_path_pulse_within_budget,passed
+MO-2,tests/gui/test_motion.py::test_view_switch_cross_fade,passed
+MO-3,tests/gui/test_motion.py::test_adopt_config_animates_chip,passed
 MP-1,tests/gui/test_mapping_view.py::test_loads_m_sv_mat_software_side_by_side,passed
 MP-2,tests/gui/test_mapping_view.py::test_user_link_unlink_mark_unmapped,passed
 MP-2,tests/unit/test_mapping_propose.py::test_proposals_are_never_pre_confirmed,passed
@@ -244,6 +247,9 @@ TH-4,tests/gui/test_main_window.py::test_theme_live_switch_no_restart,passed
 TH-5,tests/unit/test_theme_tokens.py::test_bundled_alternates_present_and_valid,passed
 TH-7,tests/gui/test_typography.py::test_type_scale_hierarchy_applied,passed
 UI-1,tests/gui/test_main_window.py::test_sidebar_has_eight_capabilities_plus_settings,passed
+UI-10,tests/gui/test_states.py::test_dse_sweep_shows_live_pareto,passed
+UI-10,tests/gui/test_states.py::test_zero_findings_shows_clean_affirmation,passed
+UI-11,tests/gui/test_inspector.py::test_inspector_collapsible_and_persisted,passed
 UI-2,tests/gui/test_main_window.py::test_format_change_reauditss_live,passed
 UI-2,tests/gui/test_main_window.py::test_opening_file_populates_views_and_statusbar,passed
 UI-4,tests/gui/test_main_window.py::test_navigation_switches_views,passed
@@ -253,10 +259,13 @@ UI-7,tests/gui/test_inspector.py::test_inspector_not_full_file_dump,passed
 UI-7,tests/gui/test_inspector.py::test_node_selection_shows_structured_facts,passed
 UI-8,tests/gui/test_sidebar.py::test_active_item_has_accent_indicator,passed
 UI-8,tests/gui/test_sidebar.py::test_sidebar_items_have_labels_or_tooltips,passed
+UI-9,tests/gui/test_density.py::test_density_persists_across_session,passed
+UI-9,tests/gui/test_density.py::test_density_toggle_changes_sizing,passed
 VZ-1,tests/gui/test_polish.py::test_slack_overlay_toggle,passed
 VZ-1,tests/unit/test_viz.py::test_critical_path_and_dividers_marked,passed
 VZ-1,tests/unit/test_viz.py::test_timeline_axis_is_cycles,passed
 VZ-2,tests/gui/test_main_window.py::test_finding_click_through_selects_node_and_highlights_source,passed
+VZ-2a,tests/gui/test_selection_sync.py::test_findings_row_couples_to_timeline_and_source,passed
 VZ-3,tests/gui/test_main_window.py::test_visualizer_svg_export,passed
 VZ-3,tests/unit/test_viz.py::test_svg_export_uses_palette_tokens_only,passed
 VZ-4,tests/gui/test_timeline_edges.py::test_edges_routed_and_faded,passed
@@ -264,6 +273,9 @@ VZ-4,tests/gui/test_timeline_edges.py::test_selected_node_edges_brighten,passed
 VZ-5,tests/gui/test_timeline_render.py::test_per_op_accent_bar,passed
 VZ-5,tests/gui/test_timeline_render.py::test_row_spacing_on_8px_grid,passed
 VZ-6,tests/gui/test_timeline_cursor.py::test_cursor_scrubs_and_highlights_column,passed
+VZ-7,tests/gui/test_timeline_values.py::test_cursor_shows_golden_and_rtl_values,passed
+VZ-7,tests/gui/test_timeline_values.py::test_mismatch_rendered_in_error_token,passed
+VZ-8,tests/gui/test_timeline_render.py::test_pipe_delay_registers_rendered_as_bars,passed
 WS-1,tests/unit/test_mat_loader.py::test_extracts_constants_and_io_vectors_with_shape,passed
 WS-1,tests/unit/test_mat_loader.py::test_handles_v73_hdf5_and_legacy_mat,passed
 WS-1,tests/unit/test_mat_loader.py::test_nested_struct_walk_dotted_paths,passed

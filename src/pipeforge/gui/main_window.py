@@ -93,6 +93,7 @@ class MainWindow(QMainWindow):
         self.workspace.auditChanged.connect(self._on_audit)
         self.workspace.fileChanged.connect(self._on_file)
         self.workspace.formatChanged.connect(lambda _w, _s: self._update_chips())
+        self.workspace.formatChanged.connect(lambda _w, _s: self.animate_chip())  # MO-3
         self.workspace.selectionChanged.connect(self._on_selection)
         self.themes.themeChanged.connect(self._on_theme)
         self._on_theme(self.themes.theme)
@@ -260,6 +261,13 @@ class MainWindow(QMainWindow):
         box.addWidget(self.source_view, 1)
         self.inspector.setWidget(panel)
         self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.inspector)
+        self.inspector.setVisible(not self.workspace.inspector_collapsed)  # persisted (UI-11)
+
+    def toggle_inspector(self) -> None:
+        """Collapse/expand the right inspector, reclaiming timeline space (UI-11)."""
+        collapsed = not self.workspace.inspector_collapsed
+        self.workspace.inspector_collapsed = collapsed
+        self.inspector.setVisible(not collapsed)
 
     def _build_console(self) -> None:
         self.console_dock = QDockWidget("Console")
@@ -340,11 +348,28 @@ class MainWindow(QMainWindow):
 
     # -- behavior --------------------------------------------------------------
 
+    def _cross_fade(self, widget: QWidget) -> None:
+        """Cross-fade a view into place rather than a hard cut (MO-2)."""
+        from PyQt6.QtCore import QPropertyAnimation
+        from PyQt6.QtWidgets import QGraphicsOpacityEffect
+
+        from pipeforge.gui.widgets.timeline import MOTION_MS
+
+        effect = QGraphicsOpacityEffect(widget)
+        widget.setGraphicsEffect(effect)
+        anim = QPropertyAnimation(effect, b"opacity", self)
+        anim.setDuration(MOTION_MS)
+        anim.setStartValue(0.0)
+        anim.setEndValue(1.0)
+        anim.start()
+        self._fade_anim = anim
+
     def show_view(self, name: str) -> None:
         names = [c[0] for c in CAPABILITIES]
         if name in names:
             self.stack.setCurrentIndex(names.index(name))
             self.nav_buttons[name].setChecked(True)
+            self._cross_fade(self.views[name])
             # UI-8: an unmistakable accent edge bar on the active item
             for n, btn in self.nav_buttons.items():
                 btn.setProperty("active", n == name)
@@ -387,6 +412,23 @@ class MainWindow(QMainWindow):
 
     def _update_chips(self) -> None:
         self.format_chip.setText(f"{self.workspace.width}/{self.workspace.scale}")
+
+    def animate_chip(self) -> object:
+        """Animate the WIDTH/SCALE chip so an Adopt is perceptible (MO-3)."""
+        from PyQt6.QtCore import QPropertyAnimation
+        from PyQt6.QtWidgets import QGraphicsOpacityEffect
+
+        from pipeforge.gui.widgets.timeline import MOTION_MS
+
+        effect = QGraphicsOpacityEffect(self.format_chip)
+        self.format_chip.setGraphicsEffect(effect)
+        anim = QPropertyAnimation(effect, b"opacity", self)
+        anim.setDuration(MOTION_MS)
+        anim.setStartValue(0.2)
+        anim.setEndValue(1.0)
+        anim.start()
+        self._chip_anim = anim
+        return anim
 
     def _update_tool_dots(self) -> None:
         tools = detect_tools()

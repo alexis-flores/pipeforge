@@ -34,6 +34,11 @@ class FindingsTable(QWidget):
         header.addWidget(self._filter)
         header.addStretch(1)
 
+        # UI-10: a zero-findings audit reads as a clean-pipeline affirmation
+        self.affirmation = QLabel("✓ Clean pipeline — no findings.")
+        self.affirmation.setObjectName("success")
+        self.affirmation.hide()
+
         self._table = QTableWidget(0, 4)
         self._table.setHorizontalHeaderLabels(["Tag", "Line", "Saves", "Finding"])
         self._table.setSortingEnabled(True)
@@ -51,10 +56,13 @@ class FindingsTable(QWidget):
         box.setContentsMargins(0, 0, 0, 0)
         box.setSpacing(8)
         box.addLayout(header)
+        box.addWidget(self.affirmation)
         box.addWidget(self._table)
 
-    def set_findings(self, findings: list[Finding]) -> None:
+    def set_findings(self, findings: list[Finding], audited: bool = True) -> None:
         self._findings = list(findings)
+        # show the affirmation only for an audit that genuinely found nothing
+        self.affirmation.setVisible(audited and not findings)
         tags = sorted({f.tag for f in findings})
         current = self._filter.currentText()
         self._filter.blockSignals(True)

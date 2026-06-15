@@ -84,6 +84,7 @@ class Workspace(QObject):
     snapshotStale = pyqtSignal(bool)  # watched files changed since the snapshot
     logMessage = pyqtSignal(str)  # console lines (MATLAB output etc.)
     problem = pyqtSignal(str)  # user-facing, non-fatal (NF-4 toast)
+    densityChanged = pyqtSignal(str)  # 'comfortable' | 'compact' (UI-9)
 
     def __init__(self) -> None:
         super().__init__()
@@ -93,6 +94,8 @@ class Workspace(QObject):
         self.sv_path: Path | None = None
         self.mat_path: Path | None = None  # opened .mat: session setup override
         self.software_tree: object | None = None  # WorkspaceTree from the .mat (WS-6)
+        self.density = "comfortable"  # timeline density, per session (UI-9)
+        self.inspector_collapsed = False  # right inspector collapsed (UI-11)
         self.source = ""
         self.audit: Audit | None = None
         self.selected_node = ""
@@ -177,6 +180,13 @@ class Workspace(QObject):
     def rerun(self) -> None:
         """Re-run the current analysis (UI-4, Ctrl+R)."""
         self._reaudit()
+
+    def set_density(self, density: str) -> None:
+        """Comfortable/compact timeline density, remembered for the session (UI-9)."""
+        density = "compact" if density == "compact" else "comfortable"
+        if density != self.density:
+            self.density = density
+            self.densityChanged.emit(density)
 
     def _reaudit(self) -> None:
         if self.m_path is None:

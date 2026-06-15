@@ -44,3 +44,18 @@ def test_per_op_accent_bar(qtbot: QtBot) -> None:
 def test_row_spacing_on_8px_grid(qtbot: QtBot) -> None:
     w = _widget(qtbot)
     assert w.row_pitch() % 8 == 0  # honours the 8px grid with breathing room
+
+
+@pytest.mark.req("VZ-8")
+def test_pipe_delay_registers_rendered_as_bars(qtbot: QtBot) -> None:
+    # prod = a.*b (ready @4); y = prod + c needs c delayed 0->4, an explicit
+    # PIPE delay register that must show as its own bar.
+    w = TimelineWidget()
+    qtbot.addWidget(w)
+    audit = audit_source("prod = a .* b;\ny = prod + c;", "s.m", CM)
+    w.set_layout(layout_for_audit(audit))
+    bars = w.delay_bars()
+    assert bars, "expected a delay-register bar for the c operand"
+    # a real gap (from_cycle < to_cycle), distinct from operator bars
+    assert all(c1 > c0 for _nid, c0, c1, _row in bars)
+    assert any(c0 == 0 and c1 == CM.mul_lat for _nid, c0, c1, _row in bars)

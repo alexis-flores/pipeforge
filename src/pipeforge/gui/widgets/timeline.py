@@ -1,4 +1,4 @@
-"""The pipeline timeline — PipeForge's signature element (§5.1, VZ-1).
+"""The pipeline timeline - PipeForge's signature element (5.1, VZ-1).
 
 A horizontal cycle ruler; every signal is a bar from its inputs-ready cycle
 to its output-ready cycle. The critical path glows in the theme's red,
@@ -9,12 +9,23 @@ from __future__ import annotations
 
 from itertools import pairwise
 
-from PyQt6.QtCore import QPointF, QRectF, Qt, pyqtSignal
+from PyQt6.QtCore import (
+    QEasingCurve,
+    QPointF,
+    QPropertyAnimation,
+    QRectF,
+    Qt,
+    pyqtProperty,
+    pyqtSignal,
+)
 from PyQt6.QtGui import QColor, QFont, QMouseEvent, QPainter, QPen
 from PyQt6.QtWidgets import QSizePolicy, QWidget
 
 from pipeforge.core.viz.layout import Layout
 from pipeforge.gui.theme.tokens import Theme
+
+#: ease-out motion budget per animation cycle (5.1: 120-180ms).
+MOTION_MS = 160
 
 _CYCLE_PX = 12.0
 _ROW_PX = 32.0  # 8px-grid row pitch with breathing room (VZ-5)
@@ -23,7 +34,7 @@ _MARGIN_X = 24.0
 _RULER_H = 32.0  # 8px grid
 _ACCENT_W = 3.0  # per-op left-edge accent bar width (VZ-5)
 
-#: per-operator-kind accent token (VZ-5) — semantic tokens only, no hex.
+#: per-operator-kind accent token (VZ-5) - semantic tokens only, no hex.
 _OP_ACCENT: dict[str, str] = {
     "elem_smul": "accent",
     "elem_ssqr": "accent",
@@ -64,6 +75,12 @@ class TimelineWidget(QWidget):
         self._status: dict[str, str] = {}  # nid -> 'ok'|'bad' (bisection, BI-3)
         self._slack: dict[str, int] = {}  # nid -> spare cycles (VZ-1 overlay)
         self.cursor_cycle: int | None = None  # scrubbable cycle cursor (VZ-6)
+        self._density = "comfortable"  # 'comfortable' | 'compact' (UI-9)
+        self._golden: dict[str, int] = {}  # nid -> golden value at cursor (VZ-7)
+        self._rtl: dict[str, int] = {}  # nid -> observed RTL value (VZ-7)
+        self._flash_nid = ""  # transient coupling-cue node (VZ-2a)
+        self._pulse = 0.4  # critical-path pulse level (MO-1)
+        self._pulse_anim: QPropertyAnimation | None = None
         self.setMinimumHeight(120)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
@@ -158,6 +175,98 @@ class TimelineWidget(QWidget):
         x = self._x(self.cursor_cycle)
         return QRectF(x - 1.0, _RULER_H, 2.0, self.height() - _RULER_H - 4)
 
+    # -- value overlay at the cursor (VZ-7) ---------------------------------
+
+    def set_overlay(self, golden: dict[str, int], rtl: dict[str, int] | None = None) -> None:
+        """Per-node golden (and observed RTL) values to show while scrubbing."""
+        self._golden = dict(golden)
+        self._rtl = dict(rtl or {})
+        self.update()
+
+    def overlay_at_cursor(self) -> list[tuple[str, int, int | None, bool]]:
+        """(nid, golden, rtl, mismatch) for nodes in flight at the cursor (VZ-7)."""
+        if self._layout is None or self.cursor_cycle is None:
+            return []
+        out: list[tuple[str, int, int | None, bool]] = []
+        for box in self._layout.boxes.values():
+            if box.nid not in self._golden or not (box.start <= self.cursor_cycle <= box.end):
+                continue
+            g = self._golden[box.nid]
+            r = self._rtl.get(box.nid)
+            out.append((box.nid, g, r, r is not None and r != g))
+        return out
+
+    def value_token(self, mismatch: bool) -> str:
+        return "error" if mismatch else "textPrimary"  # mismatches in error (VZ-7)
+
+    # -- PIPE delay registers as explicit bars (VZ-8) -----------------------
+
+    def delay_bars(self) -> list[tuple[str, int, int, int]]:
+        """(consumer nid, from_cycle, to_cycle, row) for each operand wait (VZ-8).
+
+        A delay register exists wherever an operand is ready before the consumer
+        starts — the gap a `PIPE must cover. Distinct from operator bars.
+        """
+        if self._layout is None:
+            return []
+        bars: list[tuple[str, int, int, int]] = []
+        for a, b in self._layout.edges:
+            ba, bb = self._layout.boxes[a], self._layout.boxes[b]
+            if bb.start > ba.end:  # operand waits: an explicit delay register
+                bars.append((b, ba.end, bb.start, bb.row))
+        return bars
+
+    # -- density (UI-9) ------------------------------------------------------
+
+    def flash(self, nid: str) -> None:
+        """A transient coupling cue on a bar (VZ-2a) — clears itself shortly."""
+        from PyQt6.QtCore import QTimer
+
+        self._flash_nid = nid
+        self.update()
+        QTimer.singleShot(220, self._clear_flash)
+
+    def _clear_flash(self) -> None:
+        self._flash_nid = ""
+        self.update()
+
+    def set_density(self, density: str) -> None:
+        self._density = "compact" if density == "compact" else "comfortable"
+        self.update()
+
+    @property
+    def density(self) -> str:
+        return self._density
+
+    # -- critical-path pulse (MO-1) -----------------------------------------
+
+    def _get_pulse(self) -> float:
+        return self._pulse
+
+    def _set_pulse(self, value: float) -> None:
+        self._pulse = value
+        self.update()
+
+    pulseLevel = pyqtProperty(float, _get_pulse, _set_pulse)
+
+    def start_pulse(self) -> QPropertyAnimation:
+        """A slow, low-amplitude pulse drawing the eye to the critical path (MO-1)."""
+        anim = QPropertyAnimation(self, b"pulseLevel", self)
+        anim.setDuration(MOTION_MS)  # per-cycle, within the 120-180ms budget
+        anim.setStartValue(0.4)
+        anim.setEndValue(1.0)
+        anim.setEasingCurve(QEasingCurve.Type.OutCubic)
+        anim.setLoopCount(-1)
+        anim.start()
+        self._pulse_anim = anim
+        return anim
+
+    def _row_px(self) -> float:
+        return 24.0 if self._density == "compact" else _ROW_PX
+
+    def _box_h(self) -> float:
+        return 16.0 if self._density == "compact" else _BOX_H
+
     # -- geometry ------------------------------------------------------------
 
     def _x(self, cycle: float) -> float:
@@ -166,8 +275,8 @@ class TimelineWidget(QWidget):
     def _box_rect(self, start: int, end: int, row: int) -> QRectF:
         x = self._x(start)
         w = max((end - start) * _CYCLE_PX, _CYCLE_PX)
-        y = _RULER_H + row * _ROW_PX
-        return QRectF(x, y, w, _BOX_H)
+        y = _RULER_H + row * self._row_px()
+        return QRectF(x, y, w, self._box_h())
 
     def node_at(self, px: float, py: float) -> str:
         if self._layout is None:
@@ -294,6 +403,30 @@ class TimelineWidget(QWidget):
                 Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft,
                 label,
             )
+
+        # PIPE delay registers as explicit, distinct bars on the data path (VZ-8)
+        delay_col = QColor(t["accentMuted"])
+        delay_col.setAlphaF(0.5)
+        painter.setPen(QPen(delay_col, 1.0, Qt.PenStyle.DashLine))
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        for _nid, c0, c1, row in self.delay_bars():
+            y = _RULER_H + row * self._row_px() + self._box_h() / 2.0
+            painter.drawLine(QPointF(self._x(c0), y), QPointF(self._x(c1), y))
+            painter.drawRect(QRectF(self._x(c0), y - 2, self._x(c1) - self._x(c0), 4))
+
+        # value overlay at the cursor: golden and (when observed) RTL, mismatches
+        # in the error token (VZ-7)
+        overlay = self.overlay_at_cursor()
+        if overlay:
+            small2 = QFont(self.font())
+            small2.setPointSizeF(max(self.font().pointSizeF() - 2.0, 7.0))
+            painter.setFont(small2)
+            for nid, g, r, mismatch in overlay:
+                box = layout.boxes[nid]
+                rect = self._box_rect(box.start, box.end, box.row)
+                painter.setPen(QColor(t[self.value_token(mismatch)]))
+                txt = f"g={g}" + (f" r={r}" if r is not None else "")
+                painter.drawText(QPointF(rect.left(), rect.top() - 1), txt)
 
         # cycle cursor: faint column across all rows so occupancy is readable
         # vertically — "what is in flight at cycle N" (VZ-6)

@@ -54,9 +54,14 @@ class AuditView(QWidget):
         box.addWidget(self._summary)
         box.addWidget(split, 1)
 
+        # UI-9: apply the session density to this view's timeline
+        self.timeline.set_density(getattr(workspace, "density", "comfortable"))
+
         workspace.auditChanged.connect(self._on_audit)
         workspace.selectionChanged.connect(self.timeline.set_selected)
         self.timeline.nodeClicked.connect(workspace.select_node)
+        if hasattr(workspace, "densityChanged"):
+            workspace.densityChanged.connect(self.timeline.set_density)
 
     def set_theme(self, theme: Theme) -> None:
         self.timeline.set_theme(theme)
@@ -64,11 +69,11 @@ class AuditView(QWidget):
     def _on_audit(self, audit: object) -> None:
         if not isinstance(audit, Audit):
             self.timeline.set_layout(None)
-            self.findings.set_findings([])
+            self.findings.set_findings([], audited=False)
             self._summary.setText("Open a MATLAB file to audit its pipeline latency.")
             return
         self.timeline.set_layout(layout_for_audit(audit))
-        self.findings.set_findings(audit.findings)
+        self.findings.set_findings(audit.findings, audited=True)
         census = audit.census
         self._summary.setText(
             f"{audit.filename} — {audit.total_latency} cycles critical path, "
@@ -78,4 +83,7 @@ class AuditView(QWidget):
 
     def _on_finding(self, finding: object) -> None:
         if isinstance(finding, Finding) and finding.node:
+            # VZ-2a: a visible coupling cue to the timeline bar, plus selection
+            # (which highlights the source line) — not merely independent recolor
+            self.timeline.flash(finding.node)
             self._ws.select_node(finding.node)
