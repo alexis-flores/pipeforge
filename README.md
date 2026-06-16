@@ -8,7 +8,8 @@ You write straight-line MATLAB DSP code. PipeForge tells you what that code cost
 as an nkMatlib pipeline (cycles, multipliers, dividers), how to make it cheaper,
 what every value's range and precision will be, whether your hand-written RTL
 matches a bit-exact model — and it can write the SystemVerilog skeleton for you,
-with every matching delay computed.
+with every matching delay computed. When RTL and model disagree, it tells you
+*which pipeline stage* first diverged and *why*.
 
 ![Audit view](docs/screens/01-audit-gruvbox-dark-soft.png)
 
@@ -16,72 +17,230 @@ with every matching delay computed.
 
 ## Contents
 
-1. [First-time setup](#first-time-setup)
-2. [Five-minute tour](#five-minute-tour)
-3. [Concepts you need](#concepts-you-need)
-4. [The GUI](#the-gui)
-5. [Capability guide](#capability-guide)
-   - [Latency audit](#1-latency-audit)
-   - [Visualizer](#2-visualizer)
-   - [Golden model](#3-golden-model)
-   - [SystemVerilog linter](#4-systemverilog-linter)
-   - [Code generation](#5-code-generation)
-   - [Co-simulation](#6-co-simulation)
-   - [Mismatch bisection](#7-mismatch-bisection)
-   - [Range & precision analysis](#8-range--precision-analysis)
-   - [Design-space exploration](#9-design-space-exploration)
-   - [Formal hooks](#10-formal-hooks)
-   - [Live MATLAB bridge](#11-live-matlab-bridge)
-6. [The MATLAB subset PipeForge understands](#the-matlab-subset-pipeforge-understands)
-7. [Configuration and files on disk](#configuration-and-files-on-disk)
-8. [Development](#development)
-9. [Troubleshooting](#troubleshooting)
-10. [Known limitations](#known-limitations)
+1. [What PipeForge is for](#what-pipeforge-is-for)
+2. [Installation](#installation)
+   - [Step 1 — Python and the package](#step-1--python-and-the-package)
+   - [Step 2 — optional external tools (per OS)](#step-2--optional-external-tools-per-os)
+   - [Step 3 — point PipeForge at MATLAB](#step-3--point-pipeforge-at-matlab-optional)
+   - [Verify the install](#verify-the-install)
+3. [Five-minute tour](#five-minute-tour)
+4. [Concepts you need](#concepts-you-need)
+5. [The CLI, command by command](#the-cli-command-by-command)
+   - [audit](#cli-audit) · [codegen](#cli-codegen) · [lint](#cli-lint) ·
+     [ranges](#cli-ranges) · [dse](#cli-dse) · [cosim](#cli-cosim) ·
+     [oracle](#cli-oracle) · [reconcile](#cli-reconcile) · [map](#cli-map) ·
+     [traceability](#cli-traceability) · [matlab](#cli-matlab) · [demos](#cli-demos)
+6. [The GUI, view by view](#the-gui-view-by-view)
+7. [End-to-end workflows](#end-to-end-workflows)
+8. [The MATLAB subset PipeForge understands](#the-matlab-subset-pipeforge-understands)
+9. [Configuration and files on disk](#configuration-and-files-on-disk)
+10. [Development](#development)
+11. [Troubleshooting](#troubleshooting)
+12. [Known limitations](#known-limitations)
 
 ---
 
-## First-time setup
+## What PipeForge is for
 
-### Requirements
+If you are turning MATLAB DSP into pipelined fixed-point SystemVerilog, the hard
+parts are not the arithmetic — they are the *bookkeeping*: how many cycles each
+operation costs, which operands need delay-matching, whether 16/12 fixed point
+will overflow, and whether the RTL you (or a colleague) wrote actually matches the
+math. PipeForge is a single tool that answers all of those, from one MATLAB file,
+using one shared cost model so every answer is comparable to every other.
 
-- **Python ≥ 3.11** (3.12 recommended — required if you want co-simulation, since
-  cocotb does not yet build on 3.14)
-- Linux (Arch / Ubuntu 22.04+) or macOS. Windows is not a target.
+| You want to… | Use | What you need |
+|---|---|---|
+| Know the cycle cost / divider count of a script | [`audit`](#cli-audit) | a `.m` file |
+| See the pipeline as a timeline | [Visualizer](#gui-visualizer) | a `.m` file |
+| Generate the SystemVerilog skeleton | [`codegen`](#cli-codegen) | a `.m` file |
+| Check hand-written RTL for delay/convention bugs | [`lint`](#cli-lint) | a `.sv` file |
+| Find out if 16/12 will overflow or divide-by-near-zero | [`ranges`](#cli-ranges) | a `.m` file + input ranges |
+| Pick the best WIDTH/SCALE | [`dse`](#cli-dse) | a `.m` file |
+| Prove RTL == model bit-for-bit | [`cosim`](#cli-cosim) | `.m` + `.sv` + Verilator |
+| Find *which stage* a failing RTL diverges at | [`cosim --bisect`](#cli-cosim) | `.m` + `.sv` + Verilator |
+| Grade the model against captured ground-truth I/O | [`oracle`](#cli-oracle) | `.m` + a `.mat` of vectors |
+| Check a `.mat` workspace against its SV `software` mirror | [`reconcile`](#cli-reconcile) | a `.mat` + a `.sv` |
+| Map MATLAB variables ↔ RTL signals | [`map`](#cli-map) | `.m` + `.sv` |
+| Validate the model against *real* MATLAB values | [`matlab validate`](#cli-matlab) | MATLAB installed |
 
-### Install
-
-```sh
-git clone <this repo> && cd <repo>
-python -m venv .venv && source .venv/bin/activate
-pip install -e ".[dev]"          # or: uv pip install -p .venv -e ".[dev]"
-```
-
-That gives you two entry points:
+Two entry points expose all of it:
 
 | Command | What it is |
 |---|---|
 | `pipeforge` | the GUI (optionally pass a `.m` file to open) |
 | `pipeforge-cli` | every capability, headless — `pipeforge-cli -h` lists subcommands |
 
-### Optional external tools
+---
 
-Everything below is **optional**. Missing tools disable only their feature, with an
-actionable message — nothing crashes, nothing silently no-ops. The GUI status bar
-shows one availability dot per tool (hover for what it unlocks and how to install).
+## Installation
 
-| Tool | Unlocks | Install |
-|---|---|---|
-| Verilator + cocotb | co-simulation, generated-RTL verification | `pacman -S verilator` / `apt install verilator`; `pip install cocotb` |
-| graphviz `dot` | nicer DAG row ordering in the Visualizer | `pacman -S graphviz` / `apt install graphviz` |
-| pyslang | full SystemVerilog parsing in the linter (otherwise a structural fallback is used) | `pip install pyslang` |
-| Yosys + SymbiYosys | running the generated formal projects | distro packages |
-| MATLAB | the live workspace bridge | see below |
+PipeForge has three layers of dependency:
 
-### Pointing PipeForge at MATLAB (once per machine)
+1. **The package itself** (Python + a few pip packages) — required, gets you the
+   GUI, the audit/codegen/ranges/dse/golden-model/mapping capabilities, and the
+   `.mat` loader. This is all most people need.
+2. **External EDA tools** (Verilator, Yosys, graphviz, Verible) — each *optional*,
+   each unlocks one feature. Missing tools never crash anything: the feature
+   reports an actionable "install X to enable this" message and everything else
+   keeps working. The GUI status bar shows one availability dot per tool.
+3. **MATLAB** — optional, unlocks the live bridge (real types/shapes/values).
 
-The MATLAB location is **per-machine state** stored in
-`~/.config/pipeforge/settings.json` — it is never part of the repo, so every
-computer keeps its own. Resolution order:
+### Step 1 — Python and the package
+
+You need **Python ≥ 3.11**. 3.11 or 3.12 are the smoothest choice if you also want
+cocotb-based co-simulation (cocotb tracks the CPython release cycle and lags the
+newest version by a few months — but note PipeForge also ships a **cocotb-free
+co-sim backend** that needs only Verilator, see [`cosim`](#cli-cosim)).
+
+<details open>
+<summary><b>Linux (Arch / Ubuntu / Fedora)</b></summary>
+
+```sh
+# system Python + venv support (skip if you already have Python 3.11+)
+sudo pacman -S python                       # Arch
+sudo apt install python3 python3-venv       # Ubuntu/Debian
+sudo dnf install python3 python3-pip        # Fedora
+
+git clone <this repo> && cd pipeforge
+python -m venv .venv && source .venv/bin/activate
+pip install -e ".[dev]"
+```
+</details>
+
+<details>
+<summary><b>macOS</b></summary>
+
+```sh
+brew install python@3.12                     # Homebrew Python (recommended)
+
+git clone <this repo> && cd pipeforge
+python3.12 -m venv .venv && source .venv/bin/activate
+pip install -e ".[dev]"
+```
+
+PyQt6 ships as a wheel for both Apple Silicon and Intel — no Qt build needed.
+</details>
+
+<details>
+<summary><b>Windows</b></summary>
+
+The **GUI and the pure-Python capabilities** (audit, codegen, ranges, dse,
+golden model, mapping, `.mat` loading) run natively on Windows:
+
+```powershell
+# install Python 3.12 from python.org or: winget install Python.Python.3.12
+git clone <this repo> ; cd pipeforge
+py -3.12 -m venv .venv ; .venv\Scripts\Activate.ps1
+pip install -e ".[dev]"
+```
+
+The **simulation/formal tools** (Verilator, Yosys, cocotb, Verible) are far
+easier on Linux. For those, install **WSL2** (`wsl --install`, then a distro such
+as Ubuntu) and run PipeForge inside it exactly as in the Linux instructions. This
+is the recommended setup for co-simulation on Windows.
+</details>
+
+`pip install -e ".[dev]"` pulls these automatically (they are declared in
+`pyproject.toml`, no manual install needed):
+
+| Package | Why it's needed |
+|---|---|
+| `numpy` | numeric core throughout |
+| `PyQt6`, `pyqtgraph` | the GUI and its plots |
+| `scipy` | reads `.mat` workspace files (v5 / v7) |
+| `h5py` | reads `.mat` v7.3 (HDF5) workspace files |
+| `pytest`, `pytest-cov`, `pytest-qt`, `hypothesis`, `ruff`, `mypy` (the `[dev]` extra) | running the test suite and the gates |
+
+If you only want to *run* PipeForge (not develop it), `pip install -e .` (without
+`[dev]`) is enough.
+
+### Step 2 — optional external tools (per OS)
+
+Install only the ones whose feature you want.
+
+#### Verilator — unlocks [co-simulation](#cli-cosim) and trace bisection
+
+This is the highest-value optional tool: it's what lets PipeForge actually *run*
+your RTL and prove it bit-for-bit against the model.
+
+| OS | Install |
+|---|---|
+| Arch | `sudo pacman -S verilator` |
+| Ubuntu/Debian | `sudo apt install verilator` (for a recent version, build from source — distro packages can lag) |
+| Fedora | `sudo dnf install verilator` |
+| macOS | `brew install verilator` |
+| Windows | use it inside WSL2 (above), then `apt install verilator` |
+
+Verify: `verilator --version` (PipeForge is tested against 5.x).
+
+#### cocotb — the *default* co-sim harness (optional; Verilator-native is the alternative)
+
+cocotb is a Python package, so it installs into your venv:
+
+```sh
+pip install cocotb
+```
+
+cocotb requires a supported Python (3.11/3.12 are safe). **You do not need cocotb
+if you use `--backend verilator`**, the pure-SystemVerilog native harness that
+needs only Verilator — handy if you're on a Python version cocotb hasn't caught up
+to yet. Both backends produce bit-identical results.
+
+#### graphviz `dot` — nicer DAG row ordering in the [Visualizer](#gui-visualizer)
+
+Purely cosmetic (the timeline works without it; `dot` just packs rows better).
+
+| OS | Install |
+|---|---|
+| Arch | `sudo pacman -S graphviz` |
+| Ubuntu/Debian | `sudo apt install graphviz` |
+| Fedora | `sudo dnf install graphviz` |
+| macOS | `brew install graphviz` |
+| Windows | `winget install graphviz` |
+
+#### pyslang — full SystemVerilog parsing for the [linter](#cli-lint)
+
+Without it, the linter uses a regex/structural fallback that agrees with pyslang
+on the convention corpus; with it you get a real AST. Python package:
+
+```sh
+pip install pyslang
+```
+
+#### Verible — alternative CST backend for the [linter](#cli-lint)
+
+Google's Verilog tools; the linter can use `verible-verilog-syntax` as a parse
+backend (`lint --backend verible` / auto-selected when present).
+
+| OS | Install |
+|---|---|
+| Arch | AUR: `yay -S verible-bin` |
+| Ubuntu/Debian/Fedora/macOS | download a release from <https://github.com/chipsalliance/verible/releases> and put `verible-verilog-syntax` on your `PATH` |
+| macOS | `brew install verible` |
+
+Verify: `verible-verilog-syntax --version`.
+
+#### Yosys + SymbiYosys — run the generated [formal](#gui--formal-hooks) projects
+
+PipeForge *generates* the SymbiYosys project regardless; you need these only to
+*run* it.
+
+| OS | Install |
+|---|---|
+| Arch | `sudo pacman -S yosys` and SymbiYosys from the [OSS CAD Suite](https://github.com/YosysHQ/oss-cad-suite-build) |
+| Ubuntu/Debian | `sudo apt install yosys`; SymbiYosys via OSS CAD Suite |
+| macOS | `brew install yosys`; OSS CAD Suite for `sby` |
+| Windows | OSS CAD Suite (Windows build) or WSL2 |
+
+The easiest cross-platform route is the **OSS CAD Suite** — one download with
+Yosys, SymbiYosys, and solvers bundled.
+
+### Step 3 — point PipeForge at MATLAB (optional)
+
+The live bridge needs MATLAB itself (no extra Python toolbox — PipeForge talks to
+MATLAB through `matlab -batch`). The MATLAB location is **per-machine state**
+stored in `~/.config/pipeforge/settings.json`, never committed. Resolution order:
 
 1. Explicit setting (Settings → MATLAB command, or `matlabCommand` in settings.json)
 2. `PIPEFORGE_MATLAB` environment variable (a shell-style command string)
@@ -97,7 +256,7 @@ pipeforge-cli matlab detect
 ```
 
 This *launches* each candidate until one actually answers, then saves the winner.
-That full launch matters: a MATLAB directory can be visible but unrunnable (e.g. a
+The full launch matters: a MATLAB directory can be visible but unrunnable (e.g. a
 container install whose path shows on the host). The GUI equivalent is the
 **Detect** button in Settings.
 
@@ -105,9 +264,13 @@ container install whose path shows on the host). The GUI equivalent is the
 
 ```sh
 pipeforge-cli --version                  # pipeforge 0.1.0
-pipeforge-cli audit seed/example.m      # should print a full audit report
-make verify                              # lint + type-check + full test suite
+pipeforge-cli audit seed/example.m       # should print a full audit report
+pipeforge-cli demos                      # list the packaged demos
+make verify                              # lint + type-check + full test suite (dev)
 ```
+
+If a tool is missing, the relevant command prints exactly what to install and
+exits cleanly (code 3) — it never half-runs.
 
 ---
 
@@ -124,15 +287,16 @@ pipeforge-cli codegen tests/fixtures/normalize3d.m -o normalize3d.sv
 pipeforge-cli lint normalize3d.sv
 
 # 4. Will 16/12 fixed point overflow? Where could a divide blow up?
-pipeforge-cli ranges tests/fixtures/normalize3d.m --range x=-1:1 --range y=-1:1 --range z=-1:1
+pipeforge-cli ranges tests/fixtures/normalize3d.m \
+    --range x=-1:1 --range y=-1:1 --range z=-1:1
 
 # 5. What WIDTH/SCALE should I pick? Sweep and look at the Pareto front
 pipeforge-cli dse tests/fixtures/normalize3d.m --widths 12,16,20 --scales 8,12,14
 
-# 6. Prove RTL == model, bit for bit (needs Verilator + cocotb)
+# 6. Prove RTL == model bit-for-bit (needs Verilator; cocotb-free native backend)
 pipeforge-cli cosim tests/fixtures/cosim/sample.m \
     --sv tests/fixtures/cosim/sample.sv --top cosim_sample \
-    --include matlib-main/rtl \
+    --backend verilator --include matlib-main/rtl \
     --source matlib-main/rtl/fixedp.sv --source matlib-main/rtl/smul.sv \
     --source matlib-main/rtl/smul_raw.sv --source matlib-main/rtl/norm.sv \
     --source matlib-main/rtl/add.sv --source matlib-main/rtl/pipe.sv \
@@ -140,30 +304,6 @@ pipeforge-cli cosim tests/fixtures/cosim/sample.m \
 ```
 
 Or just run `pipeforge`, hit **Ctrl+O**, open `seed/example.m`, and click around.
-
----
-
-## Demos
-
-A curated demo per capability ships **inside the package** (pip installs get them
-too). List them with paths and copy-pasteable commands:
-
-```sh
-pipeforge-cli demos
-```
-
-In the GUI, press **Ctrl+Shift+D** (or palette → "Open demos…") for the Demos
-window: pick one, read what to expect, click **Open in PipeForge**.
-
-| Demo | Shows |
-|---|---|
-| `01_findings` | all seven audit findings in one small script |
-| `02_normalize3d` | the 48-cycle critical path and divider-orange timeline |
-| `03_pipeline` (.m + .sv) | clean lint, codegen comparison, bit-exact co-simulation |
-| `04_lint_bugs` | a missing-`PIPE` delay-match bug + a wrong valid chain, with exact fixes |
-| `05_ranges` | overflow risk, a near-zero divisor, and an *honest* format recommendation (unmet budget until you fix the hazard) |
-| `06_dse` | the WIDTH/SCALE latency/error trade and the Pareto front |
-| `07_matlab` | live snapshot with dotted struct fields, `.mat`-alone browsing, statement-by-statement validation |
 
 ---
 
@@ -179,7 +319,8 @@ them.
 **WIDTH / SCALE** define the fixed-point format: WIDTH total bits, SCALE fractional
 bits, LEFT = WIDTH − SCALE integer bits (including sign). They are a
 *workspace-level* setting (status-bar chip; default **16/12**, i.e. range ±8 with
-~0.00024 resolution). All operator latencies derive from them at runtime:
+~0.00024 resolution). **All operator latencies derive from them at runtime** —
+there is no hard-coded latency anywhere outside the cost model:
 
 | Operator | Latency |
 |---|---|
@@ -189,7 +330,7 @@ bits, LEFT = WIDTH − SCALE integer bits (including sign). They are a
 | divide (`sdiv`, `sinv`) | WIDTH + SCALE (e.g. 28 at 16/12) |
 | square root | WIDTH − LEFT/2 (e.g. 14 at 16/12) |
 | `norm` (rootsqr) | sqrt + sumsqr (e.g. 19 at 16/12) |
-| format convert, transpose, select | 0 |
+| format convert, transpose, reshape, select | 0 |
 
 Notice dividers dominate everything — which is why several audit findings are about
 eliminating them.
@@ -201,13 +342,488 @@ instance, a bisection report, and a range row.
 
 **The golden model** is a bit-exact Python re-implementation of nkMatlib's
 arithmetic — same truncation directions, same overflow wraps, same divide-by-zero
-bit patterns (every decision is cited against the RTL source in
+bit patterns (every decision cited against the RTL source in
 `docs/fxp_semantics.md`). "Passes co-simulation" means the RTL equals this model
 bit-for-bit, not "approximately".
 
+**Column-major layout.** MATLAB flattens column-major, and PipeForge's flat-lane
+golden model stores values in that same order, so `reshape` is the *identity on
+values* (no arithmetic, no latency). The contract that keeps RTL aligned — flat
+index `i` ↔ `(row, col)` with `row = i % rows`, `col = i // rows`, matching SV
+packed `[rows][cols]` — is in `docs/fxp_semantics.md`. This matters for the
+[`oracle`](#cli-oracle) and [`reconcile`](#cli-reconcile) workflows.
+
+**Mapping authority.** When PipeForge correlates MATLAB variables to RTL signals
+([`map`](#cli-map)), the auto-matcher is a *first-draft proposer only*. Operation
+grouping is fully manual. Downstream consumers (traceability, reconcile alignment)
+read **only confirmed** mappings — nothing acts on a guess.
+
 ---
 
-## The GUI
+## The CLI, command by command
+
+Every command shares two conventions: `-w/--width` and `-s/--scale` set the
+fixed-point format (default 16/12), and `--json` emits machine-readable output for
+scripting/CI. **Exit codes:** `0` success/clean, `1` findings or mismatch (so CI
+can gate on it), `2` usage or I/O error, `3` a required external tool is missing.
+
+---
+
+### <a id="cli-audit"></a>`audit` — what does this MATLAB cost as a pipeline?
+
+**Helps you:** see the cycle cost, the critical path, the operator/divider census,
+and a list of concrete optimizations *before* you write any RTL.
+
+**You need:** a `.m` file. (Optionally a MATLAB snapshot for shape-true costing.)
+
+```sh
+pipeforge-cli audit file.m [-w 16 -s 12] [--json] [--snapshot snap.json]
+```
+
+**Tutorial:**
+
+```sh
+pipeforge-cli audit seed/example.m
+```
+
+You get per-statement **ready times** (the cycle each value becomes available),
+the **critical path** (total cycles + the exact dependency chain that sets it), an
+**operator census** with the divider count called out, and **findings** — each
+with a line number, estimated cycle savings, and a concrete rewrite:
+
+| Tag | Fires when | Suggested rewrite |
+|---|---|---|
+| `RECIP` | several divisions share one divisor (`x/n; y/n; z/n`) | compute `1/n` once, multiply — k−1 fewer dividers |
+| `CDIV` | division by a constant | multiply by the reciprocal; power-of-two → shift |
+| `SERDIV` | serial division chain (`a/b/c`) | multiply divisors, divide once |
+| `POW` | integer power as a multiply chain | square-and-multiply |
+| `CSE` | identical subexpression computed twice | compute once, `PIPE` it |
+| `FUSE` | `a+b+c` style chains | one `matadd3` (saves a stage) |
+| `FEEDBACK` | a variable feeds back into itself | reports the loop's initiation interval |
+| `FORMAT` | (snapshot only) a `fi` variable's format ≠ workspace format | insert `elem_snorm` or adopt the fi format |
+
+**Expect:** auditing is fast (500 statements < 1 s). Statements PipeForge can't
+parse are *skipped and listed*, never fatal. Without shape information, `*` is
+costed as elementwise multiply and `/` as a full divide — attach a snapshot
+(`--snapshot`, see [`matlab`](#cli-matlab)) for true `matmul`/`matscale` costing.
+
+---
+
+### <a id="cli-codegen"></a>`codegen` — write the SystemVerilog skeleton
+
+**Helps you:** turn a `.m` straight into a complete, convention-correct nkMatlib
+module with every delay-match computed — the tedious, error-prone part done for you.
+
+**You need:** a `.m` file (one whose constructs are in the supported subset).
+
+```sh
+pipeforge-cli codegen file.m [-m module_name] [-o out.sv]
+```
+
+**Tutorial:**
+
+```sh
+pipeforge-cli codegen tests/fixtures/normalize3d.m -m normalize3d -o normalize3d.sv
+pipeforge-cli lint normalize3d.sv          # it lints clean — by construction
+```
+
+You get a `fixedp` interface port `g`, `_0` inputs / `_N` outputs, one operator
+instance per DAG node with conventional naming, constants via `` `TOFXD``, and
+**all** matching delays — operand alignment pipes, early-output alignment to the
+final stage, and the reset valid chain.
+
+**Guarantees:** output is deterministic and passes PipeForge's own linter with
+zero findings (enforced by tests); the generated sample module passes
+co-simulation against the golden model (a CI test runs the whole
+parse→generate→simulate→match loop).
+
+**Expect:** opaque constructs (array indexing like `n(:,1)`, concatenation) raise a
+clear error naming the line — rewrite without them or extend the generator. Dotted
+variables become legal port names (`cfg.gain` → `cfg_gain_0`).
+
+---
+
+### <a id="cli-lint"></a>`lint` — check hand-written RTL for convention/delay bugs
+
+**Helps you:** catch the classic nkMatlib mistakes (mismatched operand delays,
+wrong valid chains, reset hazards) using the *same cost model as the audit*, so a
+lint stage number is directly comparable to an audit ready time.
+
+**You need:** a `.sv` file. (pyslang or Verible optional for full parsing.)
+
+```sh
+pipeforge-cli lint file.sv [-w 16 -s 12] [--disable CHECK] [--no-pyslang] [--json]
+```
+
+**Tutorial:**
+
+```sh
+pipeforge-cli lint tests/fixtures/cosim/sample.sv          # a clean file
+pipeforge-cli lint src/pipeforge/demos/04_lint_bugs.sv     # has injected bugs
+```
+
+Checks (each suppressible via `--disable`):
+
+| Check | Catches |
+|---|---|
+| `delay-match` | operands reaching an instance at different pipeline stages — reports both signals, their stages, and the exact `` `PIPE`` fix |
+| `suffix` | `_nn` stage suffixes inconsistent with computed cycles |
+| `valid-chain` | valid-signal delay ≠ data-path delay |
+| `reset` | valid flops through unreset pipes, or data through reset valid-delays (blocks SRL inference) |
+| `naming` | instances not named `i_<module>_<signal>_<stage>` |
+| `unknown-module` | instances the cost model can't price |
+
+**Expect:** exit code 1 when findings exist (CI-friendly). The active parser
+backend is reported (`pyslang`, `verible`, or the regex/structural fallback —
+findings agree across them on the test corpus). `pipe`/`valid` instances with
+explicit `.DELAY(n)` parameters are priced correctly. Stage arithmetic depends on
+WIDTH/SCALE — if the linter flags a correct file, check `-w/-s` match the design.
+
+---
+
+### <a id="cli-ranges"></a>`ranges` — overflow & near-zero-divisor analysis
+
+**Helps you:** find out, *before* simulating, whether your chosen WIDTH/SCALE will
+overflow, where a divisor could approach zero, and what format would meet an error
+budget.
+
+**You need:** a `.m` file and the input ranges (declared, or filled from a snapshot).
+
+```sh
+pipeforge-cli ranges file.m --range x=-1:1 --range n=0.1:4 \
+    [--method affine] [--recommend 0.01] [--snapshot snap.json]
+```
+
+**Tutorial:**
+
+```sh
+pipeforge-cli ranges tests/fixtures/normalize3d.m \
+    --range x=-1:1 --range y=-1:1 --range z=-1:1 --recommend 0.01
+```
+
+Per signal you get the value interval, integer bits required, an **OVERFLOW RISK**
+flag when the range exceeds the configured WIDTH/SCALE, and a **NEAR-ZERO DIVISOR**
+flag when a denominator's interval touches ±4 LSB of zero (the `x/norm(v)`
+normalization pattern flags immediately — the norm *can* be 0).
+
+- `--method affine` keeps linear correlations (`a − a` is exactly 0, where plain
+  intervals say ±2) — tighter bounds on correlated expressions.
+- `--recommend BUDGET` proposes a WIDTH/SCALE for an absolute error budget, then
+  **validates it empirically** against the golden model and reports whether the
+  budget was actually met (it will tell you honestly if a hazard makes it
+  unreachable).
+- `--snapshot` fills input ranges from live MATLAB min/max so you needn't declare them.
+
+---
+
+### <a id="cli-dse"></a>`dse` — which WIDTH/SCALE should I use?
+
+**Helps you:** trade latency, divider count, and numerical error across a grid of
+fixed-point formats, and read the Pareto front instead of guessing.
+
+**You need:** a `.m` file.
+
+```sh
+pipeforge-cli dse file.m [--widths 12,16,20,24] [--scales 8,12,16] \
+    [--vectors 64] [--csv out.csv] [--json]
+```
+
+**Tutorial:**
+
+```sh
+pipeforge-cli dse tests/fixtures/normalize3d.m \
+    --widths 12,16,20 --scales 8,12,14 --csv sweep.csv
+```
+
+Each grid point is evaluated in **parallel worker processes**: critical-path
+latency, operator/divider census, and fixed-vs-float error metrics on a fixed
+seeded stimulus. The **Pareto front** (minimize error, latency, divider count) is
+printed; dominated points dropped.
+
+**Expect:** a 3×3 grid at 64 vectors takes a few seconds. Invalid points
+(SCALE ≥ WIDTH) are skipped silently. The GUI [Exploration view](#gui-exploration)
+plots this and lets you adopt a point in one click.
+
+---
+
+### <a id="cli-cosim"></a>`cosim` — prove RTL == model, and localize failures
+
+**Helps you:** drive your RTL under Verilator with valid-paced stimulus and compare
+every output against the golden model **bit for bit** — and, on failure, point at
+the exact pipeline stage that first diverged and say whether it's wrong math or a
+delay skew.
+
+**You need:** a `.m`, the `.sv` DUT, the nkMatlib `.sv` sources it instantiates,
+and **Verilator**. cocotb is needed only for `--backend cocotb` (the default);
+`--backend verilator` is cocotb-free.
+
+```sh
+pipeforge-cli cosim file.m --sv dut.sv --top module_name \
+    --include matlib-main/rtl --source <each nkMatlib .sv the DUT uses> \
+    [--backend cocotb|verilator] [--vectors 256] [--cadence ...] \
+    [--probes auto|IDS] [--bisect] [--work-dir DIR] [--json]
+```
+
+**Tutorial — a passing run:**
+
+```sh
+pipeforge-cli cosim tests/fixtures/cosim/sample.m \
+    --sv tests/fixtures/cosim/sample.sv --top cosim_sample \
+    --backend verilator --include matlib-main/rtl \
+    --source matlib-main/rtl/fixedp.sv --source matlib-main/rtl/smul.sv \
+    --source matlib-main/rtl/smul_raw.sv --source matlib-main/rtl/norm.sv \
+    --source matlib-main/rtl/add.sv --source matlib-main/rtl/pipe.sv \
+    --source matlib-main/rtl/valid.sv
+```
+
+PipeForge generates a wrapper + testbench + stimulus (corner cases first — zeros,
+±max, ±1 LSB, ±1.0, sign boundaries — then seeded random), feeds one problem per
+clock, collects outputs where `valid_N` is high, and checks the k-th valid output
+against the golden model's k-th result. You get PASS/FAIL per output; on pass, the
+float-vs-fixed error stats (max|e|, RMS, SQNR); on failure, the first failing
+vector index with expected/actual raw values.
+
+**Tutorial — localizing a failure (`--bisect`):** add `--bisect` and, when the RTL
+is wrong, PipeForge reconstructs each pipeline stage's stream and reports the first
+divergent stage — its instance, cycle, expected vs actual, and a **triage verdict**:
+
+- **wrong-math** — "this stage computes incorrectly from correct inputs"
+- **delay-skew** — "this stage's math is fine but one operand stream is N cycles
+  late (a missing `` `PIPE``)" — the dominant real-world nkMatlib bug
+
+Two ways the stage streams are captured:
+
+| Mechanism | Use `--probes` | Works on | How |
+|---|---|---|---|
+| **Probe ports (CS-7)** | `--probes auto` or node IDs | generated / probe-instrumented RTL | codegen adds output ports exposing internal signals |
+| **VCD trace (CS-8)** | *(omit `--probes`)* | hand-written RTL following the `<signal>_<stage>` convention | dumps a waveform and reconstructs stage-aligned streams |
+
+For hand-written RTL you usually just add `--bisect` (no probes) and let the trace
+fallback localize it; probes are the robust path for generated RTL.
+
+**Options:**
+- `--backend verilator` — cocotb-free native harness (only Verilator needed);
+  bit-identical to cocotb.
+- `--cadence continuous|gapped|single|restart` — valid-driving pattern; comparison
+  stays valid-gated regardless.
+- `--vectors N` — stimulus count (default 256).
+- `--work-dir DIR` — keep all build artifacts and logs for inspection.
+
+**Expect:** first build of a DUT takes ~10 s; reruns are faster. Missing Verilator
+→ exit 3 with an install message; the test suite *skips* these rather than failing.
+
+---
+
+### <a id="cli-oracle"></a>`oracle` — grade the model against captured ground-truth I/O
+
+**Helps you:** when you have a `.mat` containing real input vectors and the
+expected outputs (e.g. captured from a reference system), drive the golden model
+with those inputs and grade its outputs against the references — *with the
+bit-exactness rule enforced*.
+
+**You need:** a `.m` script and a `.mat` whose fields are named like the script's
+inputs (fed in) and outputs (used as references).
+
+```sh
+pipeforge-cli oracle file.m --mat vectors.mat [--reference float|fixed] [--json]
+```
+
+**Tutorial:** the `.mat` must contain fields named like the script's inputs (these
+are fed in) and like its output signals (these are the references):
+
+```sh
+# given y = f(a, b, c), a vectors.mat with fields a, b, c (inputs) and y (reference):
+pipeforge-cli oracle model.m --mat vectors.mat --reference float
+```
+
+If no `.mat` field matches an input name, PipeForge tells you exactly which input
+names it was looking for (e.g. `no .mat fields match the script's inputs
+(['a', 'b', 'c'])`) so you can rename fields or adjust the script.
+
+You get per-output max|e|, RMS, and SQNR. The **`--reference` flag encodes a hard
+correctness rule** (design guard §10): only with `--reference fixed` — meaning you
+*declare* the reference was generated by a fixed-point process — does PipeForge
+issue a **bit-exact** verdict. With `--reference float` (the default) you get a
+within-precision SQNR judgment and explicitly *no* bit-exact claim, because
+claiming bit-exactness against a float reference would be a lie.
+
+**Expect:** exit 1 if a fixed-reference comparison is not bit-exact; exit 0
+otherwise.
+
+---
+
+### <a id="cli-reconcile"></a>`reconcile` — does the `.mat` match its SV `software` mirror?
+
+**Helps you:** verify that the parameters/constants in a MATLAB `.mat` workspace
+agree with the hand-written SystemVerilog `software` struct that mirrors them — and
+flag fields where rounding to the fixed-point grid is hazardous.
+
+**You need:** a `.mat` file and a `.sv` file containing a `software` struct.
+
+```sh
+pipeforge-cli reconcile workspace.mat design.sv \
+    [--mode exact|tolerance] [--decimals N | --lsb N] [--map sidecar] [--json]
+```
+
+**Tutorial:**
+
+```sh
+pipeforge-cli reconcile params.mat design.sv -w 16 -s 12
+pipeforge-cli reconcile params.mat design.sv --mode tolerance --lsb 1   # allow 1 LSB
+```
+
+For each field you get the MATLAB value, the SV value, a verdict, the delta, and a
+**⚠ rounding-hazard** marker when the double sits close enough to a quantization
+boundary that the two sides could legitimately round differently. `--mode exact`
+compares the quantized bit patterns; `--mode tolerance` accepts agreement to N
+decimals or within N LSBs. Use `--map` to align fields that were *renamed* between
+the MATLAB and SV sides (see [`map`](#cli-map)).
+
+**Expect:** exit 1 if there are mismatches or hazards, 0 if everything reconciles.
+
+---
+
+### <a id="cli-map"></a>`map` — correspond MATLAB variables ↔ RTL signals
+
+**Helps you:** build and curate the authoritative correspondence between MATLAB
+entities and SystemVerilog entities, which downstream features
+([traceability](#cli-traceability), [reconcile](#cli-reconcile) alignment) consume.
+
+**You need:** a `.m` and/or `.sv` (and optionally a `.mat`).
+
+```sh
+pipeforge-cli map propose --m file.m --sv file.sv [--mat ws.mat] [-o pipeforge.map.json]
+pipeforge-cli map show     pipeforge.map.json [--json]
+pipeforge-cli map confirm  pipeforge.map.json <matlab_name> <sv_name>
+pipeforge-cli map group    pipeforge.map.json <matlab_op> <sv_instance>...
+```
+
+**Tutorial:**
+
+```sh
+# 1. propose a first draft (variables only; confidence-scored)
+pipeforge-cli map propose --m design.m --sv design.sv -o pipeforge.map.json
+
+# 2. review it
+pipeforge-cli map show pipeforge.map.json
+
+# 3. confirm the ones that are right (only CONFIRMED links are ever used downstream)
+pipeforge-cli map confirm pipeforge.map.json x x_in
+
+# 4. group a MATLAB operation onto the SV instances that implement it (manual)
+pipeforge-cli map group pipeforge.map.json "a.*b" i_smul_prod_1
+```
+
+**Important design rule:** `propose` is a *first-draft proposer only* — variable
+matches come back with a confidence and **unconfirmed**. Operation grouping is
+**fully manual** (no auto-matching). Anything that reads the map downstream reads
+**only confirmed** entries, so nothing ever acts on an unreviewed guess.
+
+---
+
+### <a id="cli-traceability"></a>`traceability` — export the MATLAB↔RTL map as a document
+
+**Helps you:** produce a human/auditor-readable correspondence table (for a design
+review, a verification report, or a requirements trace) from a confirmed map.
+
+**You need:** a confirmed `pipeforge.map.json`, the `.m`, and the `.sv`.
+
+```sh
+pipeforge-cli traceability pipeforge.map.json --m file.m --sv file.sv \
+    [--format markdown|csv] [-o out.md]
+```
+
+**Tutorial:**
+
+```sh
+pipeforge-cli traceability pipeforge.map.json --m design.m --sv design.sv \
+    --format markdown -o traceability.md
+```
+
+You get a table linking each MATLAB statement/variable to its RTL instance/signal
+with the cost-model stage, suitable for dropping into documentation.
+
+---
+
+### <a id="cli-matlab"></a>`matlab` — the live MATLAB bridge
+
+**Helps you:** run analysis on *real* MATLAB types, shapes, `fi` formats, and
+values (not assumptions), browse `.mat` files, and validate the golden model
+statement-by-statement against MATLAB's own results.
+
+**You need:** MATLAB installed (see [Step 3](#step-3--point-pipeforge-at-matlab-optional)).
+
+```sh
+pipeforge-cli matlab detect                 # one-time per machine
+pipeforge-cli matlab probe                  # is MATLAB reachable? which version?
+pipeforge-cli matlab snapshot dsp.m --setup data.mat [-o snap.json] [--force]
+pipeforge-cli matlab snapshot params.mat    # browse a .mat alone, no script
+pipeforge-cli matlab validate dsp.m --setup setup.m [-w 16 -s 12]
+```
+
+**The workspace setup** answers "where do `x` and `cfg` come from before the script
+runs": either a `.m` script PipeForge runs first or a `.mat` it loads
+(`--setup`).
+
+**`snapshot`** runs setup + script inside MATLAB and captures *every* variable:
+class, size, `fi` WordLength/FractionLength, min/max, and values (capped at 4096
+elements; min/max always cover the full array). Struct fields come back dotted
+(`cfg.filter.taps`). Snapshots are **cached** (keyed by file mtimes) and only
+retaken on `--force` — MATLAB takes seconds to start. Write one with `-o snap.json`
+and pass it to `audit`/`ranges` via `--snapshot` for shape-true costing and
+`fi` FORMAT findings.
+
+**`validate`** is the head-to-head: it feeds MATLAB's own input values through the
+bit-exact golden model and compares **statement by statement**:
+
+```
+validate demo.m @ 16/12 — golden model vs MATLAB 26.1.0 (R2026a)
+  line   2  y              3 value(s): bit-clean
+  line   3  n              1 value(s): max|e| 6.81e-05, SQNR 78.5 dB
+```
+
+"bit-clean" means the fixed-point pipeline reproduces MATLAB exactly for those
+values; otherwise you see the per-statement quantization cost. Expect exact-
+representable arithmetic (±, exact products) to be bit-clean and roots/divides to
+sit within an LSB or two at sensible SCALEs.
+
+**Expect:** the first snapshot after a cold MATLAB start can take seconds (a
+warm/kept-alive session, configured in the GUI, drops this to ~0.1 s). Missing or
+unreachable MATLAB → exit 3 with the list of candidates it tried.
+
+---
+
+### <a id="cli-demos"></a>`demos` — the packaged, copy-pasteable examples
+
+**Helps you:** learn each capability from a curated example with a ready command.
+
+```sh
+pipeforge-cli demos
+```
+
+Demos ship **inside the package** (pip installs get them too). Each prints a
+description, a CLI command to try, and the GUI equivalent:
+
+| Demo | Shows |
+|---|---|
+| Audit: every finding type | all seven audit findings in one small script |
+| Critical path & the timeline | the normalize3d critical path and divider-orange timeline |
+| Matched .m/.sv pair | clean lint, codegen comparison, bit-exact co-simulation |
+| Linter: classic bugs | a missing-`PIPE` delay bug + a wrong valid chain, with exact fixes |
+| Ranges: overflow & near-zero | overflow risk, a near-zero divisor, an honest format recommendation |
+| Design-space exploration | the WIDTH/SCALE latency/error trade and the Pareto front |
+| MATLAB bridge | live types, dotted struct fields, `.mat` browsing, statement validation |
+
+In the GUI, press **Ctrl+Shift+D** for the Demos window: pick one, read what to
+expect, click **Open in PipeForge**.
+
+---
+
+## The GUI, view by view
+
+Launch with `pipeforge` (optionally `pipeforge file.m`). The window is a sidebar of
+capabilities + a main panel + a right-hand Inspector + a bottom console. There is
+no menu bar — the sidebar *is* the navigation.
 
 ```
 ┌──┬────────────────────────────────────────────┬─────────────┐
@@ -224,25 +840,90 @@ bit-for-bit, not "approximately".
 └──────────────────────────────────────────────────────────────┘
 ```
 
-- **Sidebar**: the eight capabilities + Settings. No menu bar — this is the
-  navigation model.
-- **Pipeline timeline** (Audit and Visualizer): every signal is a bar from its
-  inputs-ready cycle to its output-ready cycle on a horizontal cycle ruler. The
-  **critical path glows red**, **dividers are orange**. Click a bar to select that
-  node everywhere.
-- **Inspector** (right): the selected node's module, latency, ready cycle, related
-  findings, live MATLAB info when a snapshot is loaded — and the source file with
-  the node's exact originating text highlighted.
-- **Workspace context**: opening a `.m` populates *all* views; a same-named `.sv`
-  loads alongside automatically; opening a `.mat` makes it the session's MATLAB
-  setup (browse it in the Workspace view after a refresh). Changing WIDTH/SCALE
-  re-audits everything live.
+**How the workspace ties together:** opening a `.m` (Ctrl+O) populates *all* views;
+a same-named `.sv` loads alongside automatically; opening a `.mat` makes it the
+session's MATLAB setup. Changing the WIDTH/SCALE chip re-audits everything live.
+**Clicking a node anywhere selects it everywhere** — the bar in the timeline, the
+finding in the audit, the instance in codegen, the row in ranges, the stage in
+bisection all refer to the same DAG node.
 
-Keyboard (everything is reachable by Tab as well):
+The sidebar (Ctrl+1…Ctrl+9 by order):
+
+### <a id="gui-audit"></a>1. Audit
+The [`audit`](#cli-audit) report as an interactive panel: the pipeline timeline up
+top (every signal a bar from inputs-ready to output-ready on a cycle ruler;
+**critical path glows red**, **dividers orange**) and the findings table below
+(sort/filter/click). Selecting a finding highlights its node and its source span in
+the Inspector. **Use it to** understand and optimize a design at a glance.
+
+### <a id="gui-visualizer"></a>2. Visualizer
+The full DAG on the same timeline, with **Show slack** (per-node spare cycles
+`+N`; critical-path nodes show none) and **Export SVG/PNG** for docs (exports use
+the active theme). graphviz `dot` refines row packing when installed. **Use it to**
+present or document the pipeline structure.
+
+### <a id="gui--workspace"></a>3. Workspace
+The MATLAB/`.mat` browser. Open a `.mat` (Ctrl+O — it becomes the session setup),
+hit **Refresh from MATLAB**, then sort/filter the variable table: name (struct
+fields dotted), class, size, `fi` format, range. With a script also open, clicking
+a row selects the matching DAG node. **Use it to** inspect real workspace data and
+ground the analysis in true types/shapes. *(This is the live [`matlab`](#cli-matlab)
+bridge surfaced graphically; the status-bar MATLAB chip shows snapshot freshness —
+`⟳` refreshing, `✓ time · N vars` current, `⚠ stale` when a watched file changed.)*
+
+### <a id="gui-cosim"></a>4. Co-simulation
+Configures and runs [`cosim`](#cli-cosim) off the GUI thread: set the top module,
+include dir, extra `.sv` sources, vector count, backend (cocotb/verilator), and
+cadence; tick **localize + triage on failure** to bisect. You get PASS/FAIL per
+output with FX-4 stats, and on failure the localized stage + triage; the result is
+broadcast to the Bisection view. **Use it to** verify RTL without touching a
+terminal. (Never auto-probes a hand-written DUT — it relies on the trace fallback.)
+
+### <a id="gui-bisection"></a>5. Bisection
+Renders a co-sim failure on the timeline: matched stages green, the **first
+divergent stage red**, everything downstream dimmed, with the wrong-math /
+delay-skew verdict. **Use it to** see *where* and *why* RTL diverged from the model.
+
+### <a id="gui-linter"></a>6. Linter
+The [`lint`](#cli-lint) findings for the loaded `.sv` in a sortable table, with the
+exact fix per finding and the active parse backend reported. **Use it to** clean up
+hand-written RTL against the conventions.
+
+### <a id="gui-codegen"></a>7. Codegen
+Generates the SystemVerilog from the loaded `.m`, shows it, confirms it **lints
+clean**, and offers **Save**. **Use it to** produce a starting-point module and
+diff it against your hand-written one.
+
+### <a id="gui-exploration"></a>8. Exploration
+The [`dse`](#cli-dse) sweep with a progress bar + Cancel, a scatter plot (error vs
+latency, log scale, Pareto points starred), and **Adopt selected** — picking a row
+updates the workspace WIDTH/SCALE and re-derives every view live. **Use it to**
+choose a fixed-point format from data.
+
+### <a id="gui-correspondence"></a>9. Correspondence
+The [`map`](#cli-map) workflow graphically: review proposed variable matches,
+confirm the right ones, and group operations to instances — feeding traceability
+and reconcile. **Use it to** curate the authoritative MATLAB↔RTL mapping. (Only
+confirmed entries propagate.)
+
+### <a id="gui-settings"></a>10. Settings
+Theme (Gruvbox Dark Soft/Hard, Gruvbox Light, High Contrast — live, persisted),
+MATLAB command + **Detect**, workspace setup file, **Keep MATLAB warm** (one
+background session: ~4 s cold, then ~0.1 s/snapshot) and **Auto-refresh when files
+change** (true syncing). **Use it to** configure the per-machine bits.
+
+### <a id="gui--formal-hooks"></a>Formal hooks (library/CLI-adjacent)
+PipeForge can generate a SymbiYosys project (`formal_top.sv` + `project.sby`)
+asserting that `valid_N` is exactly the cost-model latency behind `valid_0`, with
+input ranges rendered as SVA `assume`s (library API
+`pipeforge.core.cosim.formal.write_formal_project`). Running it needs
+[Yosys/SymbiYosys](#yosys--symbiyosys--run-the-generated-formal-projects).
+
+**Keyboard:**
 
 | Keys | Action |
 |---|---|
-| Ctrl+O | open a `.m` / `.sv` |
+| Ctrl+O | open a `.m` / `.sv` / `.mat` |
 | Ctrl+1 … Ctrl+9 | switch view (sidebar order) |
 | Ctrl+R | re-run the current analysis |
 | Ctrl+K | command palette (type-to-filter every action and theme) |
@@ -250,327 +931,61 @@ Keyboard (everything is reachable by Tab as well):
 | Ctrl+Shift+M | refresh from MATLAB |
 | Ctrl+Shift+D | open the Demos window |
 
-**Theming**: Gruvbox Dark Soft by default; Gruvbox Dark Hard, Gruvbox Light, and
-High Contrast are bundled. Switch live in Settings (persists). Drop your own JSON
-theme into `~/.config/pipeforge/themes/` — malformed themes fail validation with a
-clear message and fall back to the default.
+Drop your own JSON theme into `~/.config/pipeforge/themes/`; malformed themes fail
+validation with a clear message and fall back to the default.
 
 ---
 
-## Capability guide
+## End-to-end workflows
 
-### 1. Latency audit
+**"I have a MATLAB algorithm and want production RTL."**
+`audit` (see the cost) → `ranges --recommend` (pick a safe format) →
+`dse` (confirm the format trade) → `codegen` (skeleton) →
+`cosim --backend verilator` (prove it) → `cosim --bisect` (if it fails, find the
+stage).
 
-**What it does:** static analysis of a MATLAB script against the nkMatlib cost
-model.
+**"A colleague hand-wrote the RTL; does it match the math?"**
+`lint dut.sv` (conventions) → `cosim --sv dut.sv --bisect` (bit-exact + localize) →
+the Bisection view tells you wrong-math vs delay-skew.
 
-```sh
-pipeforge-cli audit file.m [-w 16 -s 12] [--json] [--snapshot snap.json]
-```
-
-**What you get:**
-- per-statement **ready times** (the cycle each value becomes available) and the
-  added latency per statement
-- the **critical path**: total cycles plus the exact dependency chain that sets it
-- an **operator census** with the divider count called out
-- **findings** — each with line number, estimated cycle savings, and a concrete
-  rewrite:
-
-| Tag | Fires when | Suggested rewrite |
-|---|---|---|
-| `RECIP` | several divisions share one divisor (`x/n; y/n; z/n`) | compute `1/n` once, multiply — k−1 fewer dividers |
-| `CDIV` | division by a constant | multiply by the reciprocal; power-of-two → shift |
-| `SERDIV` | serial division chain (`a/b/c`) | multiply divisors, divide once |
-| `POW` | integer power as a multiply chain | square-and-multiply |
-| `CSE` | identical subexpression computed twice | compute once, `PIPE` it |
-| `FUSE` | `a+b+c` style chains | one `matadd3` (saves a stage) |
-| `FEEDBACK` | a variable feeds back into itself | reports the loop's initiation interval |
-| `FORMAT` | (only with a MATLAB snapshot) a `fi` variable's format ≠ workspace format | insert `elem_snorm` or adopt the fi format |
-
-**Expectations:** auditing is fast (500 statements < 1 s). Statements PipeForge
-can't parse are *skipped and listed*, never fatal. Without shape information, `*`
-is costed as an elementwise multiply and `/` as a full divide — attach a MATLAB
-snapshot to get true `matmul`/`matscale` costing.
-
-### 2. Visualizer
-
-**What it does:** the full DAG on the pipeline timeline.
-
-- x-axis is *cycles*, so horizontal length is honest latency; rows are packed
-  (graphviz `dot` refines row order when installed).
-- **Show slack** overlays per-node spare cycles (`+N`); critical-path nodes show
-  none — they have zero slack by definition.
-- **Export SVG / PNG** for documentation; exports use the active theme.
-
-### 3. Golden model
-
-**What it does:** evaluates the DAG two ways — bit-exact fixed point and float64 —
-and reports per-output error statistics (max |error|, RMS, SQNR in dB).
-
-This is a library capability (it powers co-sim, validation, recommendation, and
-DSE); the most direct way to use it interactively is `pipeforge-cli matlab
-validate` (below), which compares it against real MATLAB values.
-
-**What "bit-exact" includes** (all cited to RTL source in
-`docs/fxp_semantics.md`): truncation *toward −∞* on renormalization (the nkMatlib
-README says "toward 0" — the RTL floors, the RTL wins), truncation toward zero on
-division, silent overflow wrap on multiply, per-product renormalization *before*
-wrapped summation in `sumsqr`/`matmul`, the all-ones quotient on divide-by-zero,
-and the bit-serial square root (note: it needs an **even LEFT** to scale
-correctly).
-
-### 4. SystemVerilog linter
-
-**What it does:** checks an nkMatlib-convention `.sv` file using the *same cost
-model as the audit* — a lint stage number is directly comparable to an audit ready
-time.
-
-```sh
-pipeforge-cli lint file.sv [-w 16 -s 12] [--disable CHECK] [--no-pyslang] [--json]
-```
-
-Checks (each suppressible via `--disable`):
-
-| Check | Catches |
-|---|---|
-| `delay-match` | operands reaching an instance at different pipeline stages — reports both signals, their computed stages, and the exact `` `PIPE`` fix |
-| `suffix` | `_nn` stage suffixes inconsistent with computed cycles |
-| `valid-chain` | valid-signal delay ≠ data-path delay |
-| `reset` | valid flip-flops through unreset pipes, or data through reset valid-delays (blocks SRL inference) |
-| `naming` | instances not named `i_<module>_<signal>_<stage>` |
-| `unknown-module` | instances the cost model can't price |
-
-**Expectations:** exit code 1 when findings exist (CI-friendly). The active parser
-backend is reported (`pyslang` or the regex/structural fallback — findings agree
-between them on the test corpus). `pipe`/`valid` instances with explicit
-`.DELAY(n)` parameters are priced correctly.
-
-### 5. Code generation
-
-**What it does:** emits a complete nkMatlib module from a MATLAB script.
-
-```sh
-pipeforge-cli codegen file.m [-m module_name] [-o out.sv]
-```
-
-**What you get:** `fixedp` interface port `g`, `_0` inputs / `_N` outputs, one
-operator instance per DAG node with conventional naming, constants via `` `TOFXD``,
-and **all** matching delays computed for you — operand alignment pipes, alignment
-of early outputs to the final stage, and the reset valid chain.
-
-**Guarantees:** output is deterministic, and generated code passes PipeForge's own
-linter with zero findings (enforced by tests). The generated module for the sample
-pair passes co-simulation against the golden model — the full parse → generate →
-simulate → match loop is a CI test.
-
-**Expectations:** opaque constructs (array indexing like `n(:,1)`, concatenation)
-raise a clear error naming the line — rewrite without them or extend the
-generator. Dotted variables become legal port names (`cfg.gain` → `cfg_gain_0`).
-
-### 6. Co-simulation
-
-**What it does:** drives your RTL under Verilator with valid-paced stimulus and
-compares every output against the golden model **bit for bit**.
-
-```sh
-pipeforge-cli cosim file.m --sv dut.sv --top module_name \
-    --include matlib-main/rtl --source <each nkMatlib .sv the DUT instantiates> \
-    [--vectors 256] [--work-dir DIR] [--json]
-```
-
-**What happens:** PipeForge generates a plain-port wrapper (so cocotb doesn't have
-to drive a SystemVerilog interface), a cocotb testbench, and a stimulus set —
-corner cases first (zeros, ±max, ±1 LSB, ±1.0, sign boundaries), then seeded
-random. One problem enters the pipe per clock; outputs are collected where
-`valid_N` is high; the k-th valid output must equal the golden model's k-th result
-exactly.
-
-**What you get:** PASS/FAIL per output; on failure the first failing vector index
-with expected/actual raw values; on pass the float-vs-fixed error stats. Exit
-codes: 0 pass, 1 fail, 3 tools missing. All build artifacts and logs stay in the
-work dir for inspection.
-
-**Expectations:** needs Verilator and cocotb (auto-detected; absence produces an
-actionable message, and the test suite *skips* rather than fails). First build of
-a DUT takes ~10 s; reruns are faster.
-
-### 7. Mismatch bisection
-
-**What it does:** when RTL ≠ model, localizes the **first divergent pipeline
-stage** instead of leaving you staring at a wrong output.
-
-This is a library API (`pipeforge.core.bisect.engine.bisect`): give it the DAG, the
-stimulus, and per-node observed RTL streams; it compares them against golden
-intermediates (every node, every vector) and reports the first divergent node —
-its instance name, cycle, expected vs actual values, and whether its *inputs*
-matched.
-
-**The key feature:** it distinguishes **wrong-math** ("this stage computes
-incorrectly from correct inputs") from **delay-skew** ("this stage's math is fine
-but one operand stream is N cycles late — a missing `` `PIPE``"), by replaying the
-stage with shifted operand streams. Delay skew is the dominant real-world nkMatlib
-bug. The timeline renders the result: matched nodes green, the first divergent
-node red, everything downstream dimmed.
-
-### 8. Range & precision analysis
-
-**What it does:** propagates value ranges through the DAG.
-
-```sh
-pipeforge-cli ranges file.m --range x=-1:1 --range n=0.1:4 \
-    [--method affine] [--recommend 0.01] [--snapshot snap.json]
-```
-
-**What you get, per signal:** the value interval, integer bits required, an
-**OVERFLOW RISK** flag when the range exceeds the configured WIDTH/SCALE, and a
-**NEAR-ZERO DIVISOR** flag when a denominator's interval touches ±4 LSB of zero
-(the normalization `x/norm(v)` pattern flags immediately — the norm *can* be 0).
-
-- `--method affine` keeps linear correlations (`a − a` is exactly 0, where plain
-  intervals say ±2) — tighter bounds on correlated expressions; results are
-  labeled with the method used.
-- `--recommend BUDGET` proposes a WIDTH/SCALE meeting an absolute error budget
-  (LEFT from the propagated ranges — forced even for sqrt correctness — SCALE from
-  the budget), then **validates it empirically** against the golden model and says
-  whether the budget was actually met.
-- `--snapshot` fills input ranges from live MATLAB min/max so you don't have to
-  declare them.
-
-### 9. Design-space exploration
-
-**What it does:** answers "which WIDTH/SCALE should I use?" with data.
-
-```sh
-pipeforge-cli dse file.m [--widths 12,16,20,24] [--scales 8,12,16] \
-    [--vectors 64] [--csv out.csv] [--json]
-```
-
-Each grid point is evaluated in **parallel worker processes**: critical-path
-latency, operator/divider census, and fixed-vs-float error metrics on a fixed
-seeded stimulus. The **Pareto front** (minimize error, latency, divider count) is
-extracted and printed; dominated points are dropped.
-
-**In the GUI** (Exploration view): set the grids, Run (progress bar + Cancel),
-see the scatter (error vs latency, log scale; front points starred), select a
-row, **Adopt selected** — the workspace WIDTH/SCALE updates and every view
-re-derives live.
-
-**Expectations:** a 3×3 grid at 64 vectors takes a few seconds. Invalid points
-(SCALE ≥ WIDTH) are skipped silently.
-
-### 10. Formal hooks
-
-**What it does:** generates a SymbiYosys project (`formal_top.sv` + `project.sby`)
-asserting that `valid_N` is exactly the cost-model latency behind `valid_0`
-(against a reference shift register), with RP-1 input ranges rendered as SVA
-`assume`s. Library API: `pipeforge.core.cosim.formal.write_formal_project`. Running
-the project needs Yosys/SymbiYosys; their absence disables the feature with a clear
-message.
-
-### 11. Live MATLAB bridge
-
-**What it does:** connects PipeForge to a *real* MATLAB session so analysis runs on
-real types, shapes, formats, and values — including nested struct fields.
-
-```sh
-pipeforge-cli matlab detect                 # one-time per machine (see setup)
-pipeforge-cli matlab probe                  # is MATLAB reachable? which one?
-pipeforge-cli matlab snapshot dsp.m --setup data.mat [-o snap.json] [--force]
-pipeforge-cli matlab validate dsp.m --setup setup.m [-w 16 -s 12]
-```
-
-**The workspace setup** answers "where do `x` and `cfg` come from before the
-script runs": either a `.m` script PipeForge runs first (parameters, test
-signals) or a `.mat` file it loads. Set it per project in Settings or pass
-`--setup`.
-
-**Snapshot** runs setup + script inside MATLAB and captures *every* variable:
-class, size, `fi` WordLength/FractionLength, min/max, and values (capped at 4096
-elements; min/max always cover the full array). Struct fields come back dotted
-(`cfg.filter.taps`). Snapshots are **cached** and only retaken on explicit refresh
-(`--force`, the Detect…/Refresh actions) because MATLAB takes seconds to start.
-
-**Refresh feedback and staleness.** The status bar shows a MATLAB chip:
-`MATLAB ⟳ 12s` (accent-colored) while a refresh runs, `MATLAB ✓ 14:03 · 11 vars`
-when current, and `MATLAB ⚠ stale` (warning-colored) the moment a watched file —
-the open `.m`/`.mat` or the configured setup — changes after the snapshot. Click
-the chip to refresh; a toast confirms completion ("11 variables in 0.4 s").
-
-**Keep MATLAB warm (full sync).** Settings → "Keep MATLAB warm" starts one
-background MATLAB session (file-based RPC through the shared config dir — works
-through the container; holds a license seat while running). The cold start is
-paid once — measured here: ~4 s cold, then **~0.1 s per snapshot**. With the
-session warm, enable "Auto-refresh when files change" and snapshots retake
-themselves whenever you save the `.m`/`.mat` — true syncing; without it, changes
-just flip the chip to stale. A live server also accelerates
-`pipeforge-cli matlab snapshot/validate` automatically; if the session dies,
-everything falls back to batch mode in the same call.
-
-**Inspecting a `.mat` parameter file alone** — no script needed:
-
-```sh
-pipeforge-cli matlab snapshot params.mat
-```
-
-MATLAB loads the file and PipeForge lists every variable's name (struct fields
-dotted), class, size, fi format, and range. In the GUI, the **Workspace** view
-(Ctrl+3) is the browser: open a `.mat` with Ctrl+O (it becomes the session's
-setup), hit **Refresh from MATLAB**, then sort/filter the variable table; with a
-script also open, clicking a row selects the matching DAG node everywhere.
-
-**With a snapshot attached** (`--snapshot` on `audit`/`ranges`, or **Ctrl+Shift+M**
-in the GUI):
-- `A * B` is costed as a true `matmul`, scalar×matrix as `matscale`,
-  matrix/scalar as `matunscale` — latencies and census change accordingly
-- `fi` variables whose format differs from the workspace raise **FORMAT** findings
-- input ranges come from live min/max
-- the Inspector shows each node's MATLAB class/size/format and a value preview
-
-**Validate** is the head-to-head: it feeds MATLAB's own input values through the
-bit-exact golden model and compares **statement by statement** against what MATLAB
-computed:
-
-```
-validate demo.m @ 16/12 — golden model vs MATLAB 26.1.0 (R2026a)
-  line   2  y              3 value(s): bit-clean
-  line   3  n              1 value(s): max|e| 6.81e-05, SQNR 78.5 dB
-```
-
-"bit-clean" means the fixed-point pipeline will reproduce MATLAB exactly for those
-values; otherwise you see the quantization cost per statement. Expect exact-
-representable arithmetic (±, exact products) to be bit-clean and roots/divides to
-sit within an LSB or two at sensible SCALEs.
+**"I have a `.mat` of reference vectors and a `software` struct in SV."**
+`reconcile ws.mat design.sv` (constants agree?) →
+`map propose`/`confirm`/`group` (curate the correspondence) →
+`oracle model.m --mat ws.mat --reference fixed` (grade the model on real I/O) →
+`traceability` (export the audit document).
 
 ---
 
 ## The MATLAB subset PipeForge understands
 
-Parsed: assignments; numbers (including scientific notation); `+ - * / \ .* ./ .\
-^ .^`; unary minus; transpose `'` / `.'`; parentheses; comments `%`; line
-continuations `...`; struct-field access `a.b.c`; array-index atoms (`n(:,1)`)
-as *opaque operands*; matrix literals `[ ... ]` as opaque concatenation; simple
-`for` loops (used for feedback detection); and these functions:
+Parsed: assignments; numbers (incl. scientific notation); `+ - * / \ .* ./ .\ ^ .^`;
+unary minus; transpose `'` / `.'`; parentheses; comments `%`; line continuations
+`...`; struct-field access `a.b.c`; array-index atoms (`n(:,1)`) as *opaque
+operands*; matrix literals `[ ... ]` as opaque concatenation; simple `for` loops
+(for feedback detection); `reshape`; and these functions:
 
 `sqrt abs max min norm sumsqr cross dot vecnorm transpose ones zeros`
 
 Everything else — `if`/`while` bodies, strings, comparisons, unknown functions,
 non-constant exponents — is **skipped and reported** with its line and reason.
-Skips never abort the analysis; check the "skipped" section of the audit to see
-what was ignored.
+Skips never abort the analysis; check the "skipped" section of the audit.
 
 ---
 
 ## Configuration and files on disk
 
-Everything user-visible lives under `~/.config/pipeforge/` (XDG-aware). Deleting
-the directory yields a clean first run.
+Everything user-visible lives under `~/.config/pipeforge/` (XDG-aware; on Windows,
+the equivalent app-config dir). Deleting it yields a clean first run.
 
 | Path | Contents |
 |---|---|
-| `settings.json` | theme choice, MATLAB command (`matlabCommand`), setup file (`matlabSetup`) |
+| `settings.json` | theme, MATLAB command (`matlabCommand`), setup file (`matlabSetup`) |
 | `themes/*.json` | your custom themes |
 | `matlab_cache/` | cached workspace snapshots (keyed by script/setup mtimes) |
 | `matlab_work/` | generated `pf_query.m` + raw snapshot JSON (home-shared with containers) |
+
+Project sidecars: `pipeforge.map.json` (the MATLAB↔RTL correspondence map) lives
+next to your design, not in the config dir — it's part of the project.
 
 Environment variables: `PIPEFORGE_MATLAB` (MATLAB command override),
 `XDG_CONFIG_HOME` (relocates the config dir), `QT_QPA_PLATFORM=offscreen`
@@ -581,7 +996,7 @@ Environment variables: `PIPEFORGE_MATLAB` (MATLAB command override),
 ## Development
 
 ```sh
-make verify     # ruff check + format check + mypy --strict (core) + pytest with coverage
+make verify     # ruff check + format check + mypy --strict (core) + pytest w/ coverage
 make rtm        # regenerate docs/rtm.csv and check every P0 requirement has a passing test
 make test COV=80
 ```
@@ -590,57 +1005,53 @@ Architecture rules, enforced by tests in `tests/unit/test_architecture.py`:
 
 - `src/pipeforge/core/` is pure Python — **zero Qt imports**; the GUI is a view
   over the engine, never the home of logic.
-- No hex color literal outside theme JSON; all GUI color flows from semantic
-  tokens.
-- No hard-coded latency outside `core/costmodel/` — everything derives from
-  WIDTH/SCALE.
+- No hex color literal outside theme JSON; all GUI color flows from semantic tokens.
+- No hard-coded latency outside `core/costmodel/` — everything derives from WIDTH/SCALE.
 - Every capability must be exercisable from `pipeforge-cli`.
 
-Tests requiring external tools (Verilator, MATLAB) are marked and **skip with a
-visible reason** when the tool is absent; CI runs a tools-installed job so they
-execute somewhere. The binding spec is `PipeForge_SRS.md`; per-phase reports live
-in `docs/phase_reports/`; `seed/` is the frozen reference auditor whose behavior
-the golden files pin.
-
-Handoff state: all SRS phases 0–8 complete and tagged (`phase-N-complete`), full
-suite green with every P0 requirement traced to a passing test (`make rtm`), and
-the MATLAB bridge + co-simulation verified live (R2026a in distrobox, Verilator
-5.048).
+Tests requiring external tools (Verilator, cocotb, Verible, MATLAB) are marked and
+**skip with a visible reason** when the tool is absent; a tools-installed CI job
+runs them. The requirement-traceability matrix is `docs/rtm.csv` (regenerated by
+`make rtm`); the fixed-point semantics contract is `docs/fxp_semantics.md`; `seed/`
+is the frozen reference auditor whose behavior the golden files pin.
 
 ---
 
 ## Troubleshooting
 
-**"Co-simulation needs external tools that are not available"** — install
-Verilator and cocotb *into the project venv* (`pip install cocotb`). cocotb
-requires Python ≤ 3.12.
+**"Co-simulation needs external tools that are not available"** — install Verilator
+(and cocotb *into the venv* if using the default backend). On a Python version
+cocotb doesn't support yet, use `--backend verilator` (no cocotb needed).
 
 **"No working MATLAB found"** — run `pipeforge-cli matlab detect` and read the
-list of candidates it tried; set `PIPEFORGE_MATLAB` or Settings → MATLAB command
-if your install is somewhere unusual. For container setups, the command must be
-the full wrapper (e.g. `distrobox enter <name> -- /path/to/matlab`).
+candidates it tried; set `PIPEFORGE_MATLAB` or Settings → MATLAB command. For
+containers, the command must be the full wrapper (e.g.
+`distrobox enter <name> -- /path/to/matlab`).
 
-**MATLAB snapshot times out** — first start of a stopped container plus MATLAB
-cold start can approach the 180 s budget; retry once the container is warm.
-Check the console (GUI) or stderr (CLI) for MATLAB's own output.
+**MATLAB snapshot times out** — first start of a stopped container plus MATLAB cold
+start can approach the 180 s budget; retry once warm, or enable "Keep MATLAB warm".
 
-**"snapshot has no values for input(s): …"** during validate — the named
-variables don't exist in MATLAB after setup + script. Point `--setup` at the
-script/`.mat` that creates them.
+**"snapshot has no values for input(s): …"** during validate — the named variables
+don't exist after setup + script; point `--setup` at the script/`.mat` that creates them.
 
-**Audit shows `(skipped)` statements you expected to be analyzed** — see
+**Audit shows `(skipped)` statements** — see
 [the subset](#the-matlab-subset-pipeforge-understands); the reason column says
 exactly what wasn't supported.
 
-**Linter flags your correct file** — check WIDTH/SCALE first: stage arithmetic
-depends on them (`-w/-s` must match the design). Individual checks can be
-silenced with `--disable`.
+**Linter flags a correct file** — check WIDTH/SCALE first (stage arithmetic depends
+on them); silence individual checks with `--disable`.
 
-**GUI looks wrong after editing a custom theme** — malformed themes fall back to
-the default and the validation error names the offending token.
+**Bisection didn't localize a hand-written DUT** — the VCD-trace fallback (CS-8)
+needs signal stage suffixes to match cost-model ready times (`<signal>_<stage>`).
+For non-convention RTL, add probe ports / use generated RTL, or read the raw
+waveform in the work dir.
 
-**One-off build crashes** (GCC internal error under Verilator, rare Qt teardown
-segfault) — observed once each on Arch with GCC 16; simply retry before digging.
+**`reconcile` flags rounding hazards on values that "look equal"** — a double near a
+quantization boundary can round either way; that's the hazard. Use `--mode tolerance
+--lsb 1` if a 1-LSB difference is acceptable.
+
+**GUI looks wrong after editing a custom theme** — malformed themes fall back to the
+default and the validation error names the offending token.
 
 ---
 
@@ -648,13 +1059,18 @@ segfault) — observed once each on Arch with GCC 16; simply retry before diggin
 
 - **Scalar-lane evaluation**: the golden model evaluates vectors elementwise
   ("lanes"); matrix *costing* is shape-aware with a MATLAB snapshot, but matrix
-  *products* are validated as dot products, not full 2-D matmuls.
+  *products* are validated as dot products, not full 2-D matmuls. `reshape` is the
+  column-major identity on values (the supported, target-codebase case); a
+  non-identity 2-D repack in the *harness* packing is not exercised.
 - Static analysis without a snapshot assumes every `*` is elementwise and every
   variable is scalar-shaped — attach a snapshot for shape truth.
-- Bisection consumes observation streams via the library API; automatic VCD
-  extraction from a failing co-sim run is not implemented yet.
+- **CS-8 trace bisection** localizes hand-written RTL only when its signal stage
+  suffixes equal the cost-model ready times (always true for generated RTL); for
+  non-convention RTL it returns nothing gracefully (no crash) and you fall back to
+  probe ports.
 - Codegen rejects opaque indexing/concatenation rather than guessing.
 - One fixed-point format per workspace: mixed `fi` formats are *detected and
   flagged* (FORMAT finding) but not auto-converted mid-pipeline.
-- The MATLAB bridge spawns `matlab -batch` per snapshot (seconds); a persistent
-  engine is a planned backend behind the same interface.
+- The MATLAB bridge spawns `matlab -batch` per snapshot (seconds) unless the warm
+  session is enabled; a persistent engine is the kept-warm backend behind the same
+  interface.
