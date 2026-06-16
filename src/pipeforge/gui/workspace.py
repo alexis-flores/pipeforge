@@ -85,6 +85,7 @@ class Workspace(QObject):
     logMessage = pyqtSignal(str)  # console lines (MATLAB output etc.)
     problem = pyqtSignal(str)  # user-facing, non-fatal (NF-4 toast)
     densityChanged = pyqtSignal(str)  # 'comfortable' | 'compact' (UI-9)
+    cosimFinished = pyqtSignal(object)  # CosimResult — feeds the Bisection view
 
     def __init__(self) -> None:
         super().__init__()

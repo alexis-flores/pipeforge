@@ -50,10 +50,12 @@ BI-1,tests/unit/test_bisect.py::test_corrupted_stage_localized,passed
 BI-1,tests/unit/test_bisect.py::test_unobserved_intermediates_tolerated,passed
 BI-2,tests/unit/test_bisect.py::test_delay_skew_classified_not_wrong_math,passed
 BI-3,tests/gui/test_polish.py::test_timeline_renders_bisection_states,passed
+BI-3,tests/gui/test_views.py::test_bisection_view_marks_divergence,passed
 BI-4,tests/integration/test_bisect_e2e.py::test_delay_skew_localized_end_to_end,passed
 BI-4,tests/integration/test_bisect_e2e.py::test_wrong_math_localized_end_to_end,passed
 C1,tests/unit/test_architecture.py::test_core_has_no_qt_imports,passed
 C4,tests/unit/test_architecture.py::test_no_hardcoded_latencies_outside_costmodel,passed
+CG-1,tests/gui/test_views.py::test_codegen_view_generates_and_lints_clean,passed
 CG-1,tests/unit/test_codegen.py::test_outputs_aligned_to_final_stage,passed
 CG-1,tests/unit/test_codegen.py::test_structure_of_generated_module,passed
 CG-2,tests/unit/test_codegen.py::test_generated_code_passes_own_linter[cosim/sample.m-gen_sample],passed
@@ -72,6 +74,7 @@ CS-1,tests/unit/test_cosim.py::TestStimulus::test_all_inputs_in_every_vector,pas
 CS-1,tests/unit/test_cosim.py::TestStimulus::test_corner_cases_present,passed
 CS-1,tests/unit/test_cosim.py::TestStimulus::test_deterministic,passed
 CS-2,tests/unit/test_cosim.py::TestToolDetection::test_missing_verilator_message_is_actionable,passed
+CS-3,tests/gui/test_views.py::test_cosim_view_renders_result_and_broadcasts,passed
 CS-3,tests/unit/test_cosim.py::TestCompare::test_first_failing_vector_reported,passed
 CS-3,tests/unit/test_cosim.py::TestCompare::test_pass_with_error_stats,passed
 CS-3,tests/unit/test_cosim.py::TestCompare::test_truncated_stream_fails,passed
@@ -227,6 +230,7 @@ SL-2,tests/unit/test_svlint.py::test_delay_match_reports_both_signals_and_fix,pa
 SL-2,tests/unit/test_svlint.py::test_known_good_files_are_lint_clean[good_div.sv],passed
 SL-2,tests/unit/test_svlint.py::test_known_good_files_are_lint_clean[good_example.sv],passed
 SL-2,tests/unit/test_svlint.py::test_known_good_files_are_lint_clean[good_scalar.sv],passed
+SL-3,tests/gui/test_views.py::test_linter_view_shows_findings,passed
 SL-3,tests/unit/test_svlint.py::test_each_check_is_suppressible,passed
 SL-3,tests/unit/test_svlint.py::test_known_bad_files_trigger_exactly_their_finding[bad_data_reset.sv-reset],passed
 SL-3,tests/unit/test_svlint.py::test_known_bad_files_trigger_exactly_their_finding[bad_missing_pipe.sv-delay-match],passed
@@ -253,8 +257,8 @@ TH-7,tests/gui/test_typography.py::test_type_scale_hierarchy_applied,passed
 TL-1,tests/integration/test_backend_verilator_native.py::test_native_backend_bit_identical_to_cocotb,passed
 TL-1,tests/integration/test_cli_cosim.py::test_cli_cosim_native_backend_json,passed
 TL-1,tests/unit/test_backend_select.py::test_active_harness_backend_reported,passed
-TL-2,tests/unit/test_svlint_verible.py::test_verible_backend_reported,skipped
-TL-2,tests/unit/test_svlint_verible.py::test_verible_cst_backend_parses_convention_file,skipped
+TL-2,tests/unit/test_svlint_verible.py::test_verible_backend_reported,passed
+TL-2,tests/unit/test_svlint_verible.py::test_verible_cst_backend_parses_convention_file,passed
 UI-1,tests/gui/test_main_window.py::test_sidebar_has_eight_capabilities_plus_settings,passed
 UI-10,tests/gui/test_states.py::test_dse_sweep_shows_live_pareto,passed
 UI-10,tests/gui/test_states.py::test_zero_findings_shows_clean_affirmation,passed

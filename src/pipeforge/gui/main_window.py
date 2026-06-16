@@ -31,7 +31,6 @@ from pipeforge.core.audit.engine import Audit
 from pipeforge.gui.theme.manager import ThemeManager
 from pipeforge.gui.theme.tokens import Theme
 from pipeforge.gui.views.audit_view import AuditView
-from pipeforge.gui.views.placeholder import PlaceholderView
 from pipeforge.gui.views.settings_view import SettingsView
 from pipeforge.gui.views.visualizer_view import VisualizerView
 from pipeforge.gui.widgets.source_view import SourceView
@@ -109,26 +108,16 @@ class MainWindow(QMainWindow):
         from pipeforge.gui.views.matlab_view import MatlabView
 
         self.views["golden"] = MatlabView(self.workspace)
-        self.views["cosim"] = PlaceholderView(
-            "Co-simulation",
-            "Open a MATLAB file and its SystemVerilog implementation to compare "
-            "RTL against the golden model. Requires Verilator.",
-        )
-        self.views["bisect"] = PlaceholderView(
-            "Bisection",
-            "Run a co-simulation first; when RTL and model disagree, bisection "
-            "localizes the first divergent pipeline stage.",
-        )
-        self.views["linter"] = PlaceholderView(
-            "Linter",
-            "Open a SystemVerilog file to check nkMatlib pipeline conventions "
-            "(delay matching, stage suffixes, valid chain, reset discipline).",
-        )
-        self.views["codegen"] = PlaceholderView(
-            "Codegen",
-            "Open a MATLAB file to generate an nkMatlib SystemVerilog skeleton "
-            "with all PIPE/valid bookkeeping computed automatically.",
-        )
+        from pipeforge.gui.views.bisection_view import BisectionView
+        from pipeforge.gui.views.cosim_view import CosimView
+
+        self.views["cosim"] = CosimView(self.workspace)
+        self.views["bisect"] = BisectionView(self.workspace)
+        from pipeforge.gui.views.codegen_view import CodegenView
+        from pipeforge.gui.views.linter_view import LinterView
+
+        self.views["linter"] = LinterView(self.workspace)
+        self.views["codegen"] = CodegenView(self.workspace)
         from pipeforge.gui.views.dse_view import DseView
         from pipeforge.gui.views.mapping_view import MappingView
 
