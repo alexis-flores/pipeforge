@@ -30,8 +30,12 @@ from pipeforge.services.matlab_bridge import (
     render_snapshot_function,
 )
 
-#: heartbeat younger than this means a server is alive (server beats ~2 s)
-HEARTBEAT_FRESH_S = 6.0
+#: heartbeat younger than this means a server is alive. The server beats ~2 s
+#: when idle, but it is single-threaded: during a snapshot it cannot beat, so
+#: this window must comfortably exceed a normal snapshot or a *busy* server gets
+#: misread as dead (callers then spawn a redundant batch MATLAB). A truly dead
+#: server is still caught — the request itself times out and falls back.
+HEARTBEAT_FRESH_S = 15.0
 #: budget for the one-time cold start of the server
 START_TIMEOUT_S = 180.0
 #: budget for a single warm snapshot request
@@ -146,8 +150,11 @@ class MatlabSession:
     def __init__(self, config: MatlabConfig | None = None) -> None:
         self.config = config if config is not None else MatlabConfig.load()
         self._proc: subprocess.Popen[bytes] | None = None
+        self._adopted = False  # using a server another process owns (do not kill)
 
     def is_alive(self) -> bool:
+        if self._adopted:
+            return server_alive()
         return self._proc is not None and self._proc.poll() is None and server_alive()
 
     def start(
@@ -155,8 +162,19 @@ class MatlabSession:
         timeout: float = START_TIMEOUT_S,
         log: Callable[[str], None] | None = None,
     ) -> None:
-        """Pay the cold start once; raises MatlabUnavailable on failure."""
+        """Pay the cold start once; raises MatlabUnavailable on failure.
+
+        If a healthy server is already answering (e.g. the GUI's warm session,
+        or another PipeForge process), *adopt* it rather than launch a second
+        MATLAB — two servers would fight over the same request files and burn a
+        second license seat. An adopted server is never torn down by `stop()`.
+        """
         if self.is_alive():
+            return
+        if server_alive():
+            self._adopted = True
+            if log:
+                log("matlab session: adopting the already-running warm server")
             return
         if not fast_available(self.config):
             raise MatlabUnavailable(
@@ -193,7 +211,14 @@ class MatlabSession:
         )
 
     def stop(self) -> None:
-        """Graceful stop (server exits its loop), then terminate."""
+        """Graceful stop (server exits its loop), then terminate.
+
+        A server we merely *adopted* (started by another process) is left
+        running — its owner controls its lifecycle.
+        """
+        if self._adopted:
+            self._adopted = False
+            return
         sdir = session_dir()
         with contextlib.suppress(OSError):
             (sdir / "stop").write_text("stop", encoding="utf-8")

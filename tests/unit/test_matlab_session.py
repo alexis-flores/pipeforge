@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import secrets
+import shutil
 import threading
 import time
 from pathlib import Path
@@ -139,6 +141,33 @@ class TestSnapshotAuto:
         assert loaded.auto_refresh is True
 
 
+class TestLifecycle:
+    def test_start_adopts_existing_server_without_launching(
+        self, fake_session: FakeServer, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A second owner adopts a live server instead of spawning a competitor."""
+        launched: list[object] = []
+        monkeypatch.setattr(ms.subprocess, "Popen", lambda *a, **k: launched.append(a))
+        session = ms.MatlabSession(config=mb.MatlabConfig(command=["sh"]))
+        session.start()
+        assert session.is_alive()  # reports the adopted server
+        assert launched == []  # never started its own MATLAB
+        # stop() must not tear down a server it only adopted
+        session.stop()
+        assert ms.server_alive()  # the fake server is still running
+
+    def test_stop_of_owned_server_signals_and_clears(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+        ms.session_dir().mkdir(parents=True, exist_ok=True)
+        session = ms.MatlabSession(config=mb.MatlabConfig(command=["sh"]))
+        session._adopted = False
+        session._proc = None
+        session.stop()  # no server, no proc: writes a stop marker, no crash
+        assert (ms.session_dir() / "stop").is_file()
+
+
 def _matlab_live() -> bool:
     cfg = mb.MatlabConfig.load()
     return cfg.source != "default" and mb.fast_available(cfg)
@@ -147,10 +176,20 @@ def _matlab_live() -> bool:
 @pytest.mark.tool("matlab")
 @pytest.mark.skipif(not _matlab_live(), reason="no MATLAB on this machine — skipped per §8.2")
 def test_live_warm_session_round_trip(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Real cold start once, then two near-instant snapshots, then clean stop."""
-    monkeypatch.setenv("XDG_CONFIG_HOME", str(Path.home() / ".config"))
+    """Real cold start once, then two near-instant snapshots, then clean stop.
+
+    Runs in an *isolated* session dir so it never collides with a GUI 'keep
+    warm' session, another pipeforge process, or a leftover server in the real
+    ~/.config (the historical flake). The dir must stay under $HOME: a distrobox
+    MATLAB shares home, not the /var pytest tmp dir — so tmp_path is unusable.
+    """
+    real_cfg = mb.MatlabConfig.load()  # the detected command, before we move XDG
+    iso = Path.home() / ".cache" / "pipeforge-test-session" / secrets.token_hex(6)
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(iso))
+    if ms.server_alive():  # nothing should be alive in a fresh isolated dir
+        pytest.skip("unexpected live server in the isolated session dir")
     fixtures = Path(__file__).parent.parent / "fixtures" / "matlab"
-    session = ms.MatlabSession()
+    session = ms.MatlabSession(config=real_cfg)
     session.start()
     try:
         assert ms.server_alive()
@@ -167,4 +206,5 @@ def test_live_warm_session_round_trip(monkeypatch: pytest.MonkeyPatch) -> None:
         assert warm1 < 15 and warm2 < 15, (warm1, warm2)
     finally:
         session.stop()
+        shutil.rmtree(iso, ignore_errors=True)
     assert not ms.server_alive()
