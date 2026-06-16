@@ -89,6 +89,7 @@ CS-6,tests/unit/test_stimulus_cadence.py::test_single_cycle_valids,passed
 CS-7,tests/integration/test_cosim_probe.py::test_observations_captured_from_probes,passed
 CS-7,tests/unit/test_codegen_probe.py::test_no_probes_is_unchanged,passed
 CS-7,tests/unit/test_codegen_probe.py::test_probe_wrapper_exposes_named_signals,passed
+CS-8,tests/integration/test_cosim_trace_native.py::test_native_trace_bisection_localizes_wrong_math,passed
 CS-8,tests/unit/test_cosim_trace.py::test_active_capture_backend_reported,passed
 CS-8,tests/unit/test_cosim_trace.py::test_fst_signal_map_by_convention,passed
 CS-8,tests/unit/test_cosim_trace.py::test_trace_streams_match_golden_shape,passed

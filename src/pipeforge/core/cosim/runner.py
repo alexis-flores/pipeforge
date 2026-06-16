@@ -180,7 +180,14 @@ def run_cosim(
         vectors = generate_stimulus(inputs, fmt, count=vector_count)
     if select_harness_backend(backend) == "verilator":
         return _run_native(
-            audit, dut_sv, dut_module, work_dir, extra_sources, include_dirs, vectors
+            audit,
+            dut_sv,
+            dut_module,
+            work_dir,
+            extra_sources,
+            include_dirs,
+            vectors,
+            bisect_on_failure=bisect_on_failure,
         )
     check_tools()
     probe_nids = probes or []
@@ -253,7 +260,7 @@ runner.test(hdl_toplevel="tb_wrapper", test_module="tb_cosim"{test_kwargs})
         }
     # CS-8: no probes -> reconstruct streams from the VCD trace by convention
     elif not result.passed and bisect_on_failure:
-        result.observations = _capture_from_trace(audit, work_dir)
+        result.observations = _capture_from_trace(audit, work_dir, spec.latency)
         if result.observations:
             result.capture_backend = "trace"
     # BI-4: on failure, localize the first divergent stage automatically
@@ -271,8 +278,14 @@ def _run_native(
     extra_sources: list[Path] | None,
     include_dirs: list[Path] | None,
     vectors: list[Vector],
+    bisect_on_failure: bool = False,
 ) -> CosimResult:
-    """Verilator-native harness: a pure-SV self-driving testbench, no cocotb (TL-1)."""
+    """Verilator-native harness: a pure-SV self-driving testbench, no cocotb (TL-1).
+
+    With `bisect_on_failure`, the testbench dumps a VCD and a failing run is
+    localized by reconstructing per-node streams from the trace (CS-8) — the
+    native path is the reliable way to get a waveform out.
+    """
     from pipeforge.core.cosim.harness import write_native_collateral
 
     if shutil.which("verilator") is None:
@@ -281,19 +294,21 @@ def _run_native(
             "(install: pacman -S verilator / apt install verilator)."
         )
     fmt = FxFormat(audit.cm.width, audit.cm.scale)
-    spec = write_native_collateral(audit, dut_module, vectors, work_dir)
+    spec = write_native_collateral(audit, dut_module, vectors, work_dir, dump=bisect_on_failure)
     sources = [
         str(dut_sv.resolve()),
         *[str(s.resolve()) for s in (extra_sources or [])],
         "tb_native.sv",
     ]
     includes = [f"-I{i.resolve()}" for i in (include_dirs or [])]
+    trace_args = ["--trace"] if bisect_on_failure else []
     build = subprocess.run(
         [
             "verilator",
             "--binary",
             "--build",
             "-Wno-fatal",
+            *trace_args,
             "--top-module",
             "tb_native",
             "-o",
@@ -330,30 +345,30 @@ def _run_native(
     expected = json.loads((work_dir / "expected.json").read_text(encoding="utf-8"))["outputs"]
     result.outputs = compare_streams(audit, vectors, expected, actual, fmt)
     result.passed = all(o.passed for o in result.outputs)
+    # CS-8: on failure, reconstruct per-node streams from the dumped VCD and bisect
+    if not result.passed and bisect_on_failure:
+        result.observations = _capture_from_trace(audit, work_dir, spec.latency)
+        if result.observations:
+            result.capture_backend = "trace"
+            stimulus = [dict(vec.items()) for vec in vectors]
+            result.bisect_report = bisect(audit.dag, stimulus, result.observations, fmt)
     return result
 
 
-def _capture_from_trace(audit: Audit, work_dir: Path) -> Observations:
-    """CS-8 fallback: parse the Verilator VCD into per-node streams by convention.
+def _capture_from_trace(audit: Audit, work_dir: Path, total: int) -> Observations:
+    """CS-8: reconstruct stage-aligned per-node streams from the Verilator VCD.
 
     Works when the RTL's signal stage suffixes equal the cost-model ready times
     (always true for generated RTL; true for convention-following hand-written
     RTL). Returns an empty dict — gracefully, never raising — when no matching
     signals are found, in which case bisection simply does not run.
     """
-    from pipeforge.core.cosim.trace import parse_vcd_streams, trace_signal_map
+    from pipeforge.core.cosim.trace import observations_from_vcd
 
     vcds = sorted(work_dir.rglob("*.vcd"))
     if not vcds:
         return {}
-    nids = [
-        nid
-        for nid in audit.dag.order
-        if audit.dag.nodes[nid].module not in ("", "input", "const", "reshape")
-    ]
-    signal_map = trace_signal_map(audit.dag, nids)
     try:
-        streams = parse_vcd_streams(vcds[0].read_text(encoding="utf-8"), signal_map)
+        return observations_from_vcd(vcds[0].read_text(encoding="utf-8"), audit.dag, total)
     except (OSError, ValueError):
         return {}
-    return {nid: s for nid, s in streams.items() if s}  # drop unmatched signals

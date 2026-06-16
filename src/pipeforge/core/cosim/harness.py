@@ -163,13 +163,15 @@ async def cosim(dut):
 '''
 
 
-def render_native_tb(spec: HarnessSpec) -> str:
+def render_native_tb(spec: HarnessSpec, dump: bool = False) -> str:
     """A self-driving SystemVerilog testbench for the Verilator-native backend.
 
     No cocotb, no C++: it reads stimulus.txt, drives valid-paced vectors, and
     writes valid-gated outputs to actual.txt — the same protocol as the cocotb
-    path, so results are bit-identical (TL-1).
+    path, so results are bit-identical (TL-1). With `dump`, it also writes a VCD
+    of the whole hierarchy for trace-based bisection (CS-8).
     """
+    dump_stmt = '    $dumpfile("dump.vcd"); $dumpvars(0, tb_native);\n' if dump else ""
     w = spec.width
     in_decls = "\n".join(f"  logic [{w - 1}:0] {n}_0;" for n in spec.inputs)
     out_decls = "\n".join(f"  logic [{w - 1}:0] {n}_N;" for n in spec.outputs)
@@ -197,7 +199,7 @@ module tb_native;
   always #5 clk = ~clk;
   integer fin, fout, code, total, fed, collected, cyc;
   initial begin
-    fin = $fopen("stimulus.txt", "r");
+{dump_stmt}    fin = $fopen("stimulus.txt", "r");
     fout = $fopen("actual.txt", "w");
     code = $fscanf(fin, "%d\\n", total);
     repeat (4) @(posedge clk);
@@ -227,13 +229,13 @@ endmodule
 
 
 def write_native_collateral(
-    audit: Audit, dut_module: str, vectors: list[Vector], work_dir: Path
+    audit: Audit, dut_module: str, vectors: list[Vector], work_dir: Path, dump: bool = False
 ) -> HarnessSpec:
     """Write the native testbench + plain stimulus/expected for TL-1."""
     fmt = FxFormat(audit.cm.width, audit.cm.scale)
     spec = harness_spec(audit, dut_module)
     work_dir.mkdir(parents=True, exist_ok=True)
-    (work_dir / "tb_native.sv").write_text(render_native_tb(spec), encoding="utf-8")
+    (work_dir / "tb_native.sv").write_text(render_native_tb(spec, dump=dump), encoding="utf-8")
     lines = [str(len(vectors))]
     lines += [" ".join(str(vec[n]) for n in spec.inputs) for vec in vectors]
     (work_dir / "stimulus.txt").write_text("\n".join(lines) + "\n", encoding="utf-8")
