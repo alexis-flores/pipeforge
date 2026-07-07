@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- **WS-8 Workspace data cards**: the Workspace view's new Data tab renders one
+  card per snapshot variable — sparklines (area fill, zero-line, min/max) for
+  signals, heatmaps for matrices, large numerals for scalars, class chips —
+  custom-painted in the timeline's theme-token language. Cards click-select
+  the matching DAG node; the filter box drives cards and table alike.
+
 ## 0.2.0 — 2026-07-07
 
 The "engineers' workflow" release: PipeForge now closes the loop from MATLAB

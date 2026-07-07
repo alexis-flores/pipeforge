@@ -27,6 +27,13 @@ QMainWindow, QDialog {{ background: {t["bg"]}; }}
 QWidget#view {{ background: {t["bg"]}; }}
 QWidget#sidebar {{ background: {t["surface"]}; border-right: 1px solid {t["border"]}; }}
 QWidget#sidebar QToolButton {{ font-size: {FONT_SMALL}px; padding: 6px 2px; }}
+QTabWidget::pane {{ border: 1px solid {t["border"]}; border-radius: 8px; top: -1px; }}
+QTabBar::tab {{
+    background: transparent; color: {t["textSecondary"]};
+    padding: 6px 16px; border: none; border-bottom: 2px solid transparent;
+}}
+QTabBar::tab:selected {{ color: {t["accent"]}; border-bottom: 2px solid {t["accent"]}; }}
+QTabBar::tab:hover {{ color: {t["textPrimary"]}; }}
 QMenuBar {{ background: {t["surface"]}; border-bottom: 1px solid {t["border"]}; }}
 QMenuBar::item {{ padding: 4px 10px; background: transparent; }}
 QMenuBar::item:selected {{ background: {t["selection"]}; }}

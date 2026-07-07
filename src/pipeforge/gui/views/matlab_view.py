@@ -63,6 +63,18 @@ class MatlabView(QWidget):
         header.addWidget(self.filter_edit, 1)
         header.addWidget(self.refresh_btn)
 
+        # WS-8: the data cards — sparklines/heatmaps/values at a glance —
+        # with the sortable table one tab away for exact numbers
+        from PyQt6.QtWidgets import QScrollArea, QTabWidget
+
+        from pipeforge.gui.widgets.datacards import DataCardsWidget
+
+        self.cards = DataCardsWidget()
+        self.cards.variableClicked.connect(self._on_card)
+        cards_scroll = QScrollArea()
+        cards_scroll.setWidgetResizable(True)
+        cards_scroll.setWidget(self.cards)
+
         self.table = QTableWidget(0, 7)
         self.table.setHorizontalHeaderLabels(
             ["Name", "Class", "Size", "fi format", "Min", "Max", "Values"]
@@ -77,15 +89,25 @@ class MatlabView(QWidget):
         if hh is not None:
             hh.setStretchLastSection(True)
 
+        self.tabs = QTabWidget()
+        self.tabs.addTab(cards_scroll, "Data")
+        self.tabs.addTab(self.table, "Table")
+
         box = QVBoxLayout(self)
         box.setContentsMargins(24, 16, 24, 16)
         box.setSpacing(8)
         box.addWidget(title)
         box.addWidget(self.meta)
         box.addLayout(header)
-        box.addWidget(self.table, 1)
+        box.addWidget(self.tabs, 1)
 
         workspace.snapshotChanged.connect(self._on_snapshot)
+
+    def set_theme(self, theme: object) -> None:
+        from pipeforge.gui.theme.tokens import Theme
+
+        if isinstance(theme, Theme):
+            self.cards.set_theme(theme)
 
     def _on_refresh_started(self) -> None:
         self.refresh_btn.setEnabled(False)
@@ -126,6 +148,7 @@ class MatlabView(QWidget):
         return out
 
     def _refill(self) -> None:
+        self.cards.set_snapshot(self._snapshot, self.filter_edit.text())
         rows = self._visible()
         self.table.setSortingEnabled(False)
         self.table.setRowCount(len(rows))
@@ -151,10 +174,19 @@ class MatlabView(QWidget):
 
     def _on_row(self, row: int, _col: int) -> None:
         item = self.table.item(row, 0)
-        audit = self._ws.audit
-        if item is None or audit is None:
+        if item is None:
             return
         name = str(item.data(Qt.ItemDataRole.UserRole))
+        self.cards.set_selected(name)
+        self._select_by_name(name)
+
+    def _on_card(self, name: str) -> None:
+        self._select_by_name(name)
+
+    def _select_by_name(self, name: str) -> None:
+        audit = self._ws.audit
+        if audit is None:
+            return
         for nid in audit.dag.order:
             node = audit.dag.nodes[nid]
             if node.label == name or node.signal == name:

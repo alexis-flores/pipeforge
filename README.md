@@ -1103,14 +1103,18 @@ choose a fixed-point format from data.
 
 ### <a id="gui--workspace"></a>9. Workspace
 The MATLAB/`.mat` browser. Open a `.mat` (Ctrl+O or drag-and-drop) and it loads
-**immediately, no MATLAB needed** (WS-7): the variable table fills — name
-(struct fields dotted), class, size, range — the status chip shows `.mat ✓`,
-and every audit becomes shape-aware on the spot. Sort/filter the table; with a
-script also open, clicking a row selects the matching DAG node. **Refresh from
-MATLAB** (Ctrl+Shift+M) swaps in a *live* snapshot when you want `fi` formats
-too. **Use it to** ground the analysis in real data and true shapes. *(The
-status-bar chip shows snapshot state — `.mat ✓` static, `⟳` refreshing,
-`MATLAB ✓ time · N vars` live, `⚠ stale` when a watched file changed.)*
+**immediately, no MATLAB needed** (WS-7): the status chip shows `.mat ✓` and
+every audit becomes shape-aware on the spot. The **Data tab** (WS-8) shows one
+card per variable — a sparkline with min/max and a zero-line for signals and
+vectors, a heatmap for matrices, a large numeral for scalars, plus a class
+chip, shape, and range — so you *see* what the tool is working with, not just
+its metadata. The **Table tab** keeps the exact numbers (sortable, filterable;
+the filter box drives both). Clicking a card or row selects the matching DAG
+node everywhere. **Refresh from MATLAB** (Ctrl+Shift+M) swaps in a *live*
+snapshot when you want `fi` formats too. **Use it to** ground the analysis in
+real data and true shapes. *(The status-bar chip shows snapshot state —
+`.mat ✓` static, `⟳` refreshing, `MATLAB ✓ time · N vars` live, `⚠ stale`
+when a watched file changed.)*
 
 ### <a id="gui-correspondence"></a>10. Mapping
 The [`map`](#cli-map) workflow graphically: review proposed variable matches,
