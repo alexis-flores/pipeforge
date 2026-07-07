@@ -36,8 +36,11 @@ jobs:
         with:
           name: dist
           path: dist/
-      - uses: pypa/gh-action-pypi-publish@release/v1
+      # the GitHub release first: it needs only repo permissions, so an
+      # unconfigured PyPI trusted publisher cannot block it — configure the
+      # publisher (see header) and re-run this job to complete the upload
       - uses: softprops/action-gh-release@v2
         with:
           files: dist/*
           generate_release_notes: true
+      - uses: pypa/gh-action-pypi-publish@release/v1

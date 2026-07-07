@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.2.0 — 2026-07-06
+## 0.2.0 — 2026-07-07
 
 The "engineers' workflow" release: PipeForge now closes the loop from MATLAB
 to waveform viewer, CI gate, and integration-ready RTL — and got a star. ✵
