@@ -68,6 +68,9 @@ class TimelineWidget(QWidget):
         self._golden: dict[str, int] = {}  # nid -> golden value at cursor (VZ-7)
         self._rtl: dict[str, int] = {}  # nid -> observed RTL value (VZ-7)
         self._flash_nid = ""  # transient coupling-cue node (VZ-2a)
+        self._zoom = 1.0  # Ctrl+wheel zoom factor (VZ-9)
+        self._overflow: frozenset[str] = frozenset()  # range badges (RP GUI)
+        self._hazard: frozenset[str] = frozenset()
         self.setMinimumHeight(120)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
@@ -77,10 +80,42 @@ class TimelineWidget(QWidget):
 
     def set_layout(self, layout: Layout | None) -> None:
         self._layout = layout
-        if layout is not None:
-            w = int(_MARGIN_X * 2 + max(layout.total_cycles, 1) * _CYCLE_PX)
-            h = int(_RULER_H + max(layout.rows, 1) * _ROW_PX + 12)
+        self._resize_to_layout()
+        self.update()
+
+    def _resize_to_layout(self) -> None:
+        if self._layout is not None:
+            w = int(_MARGIN_X * 2 + max(self._layout.total_cycles, 1) * self._cycle_px())
+            h = int(_RULER_H + max(self._layout.rows, 1) * _ROW_PX + 12)
             self.setMinimumSize(w, h)
+
+    # -- zoom (VZ-9): Ctrl+wheel scales the cycle axis for big pipelines -------
+
+    def _cycle_px(self) -> float:
+        return _CYCLE_PX * self._zoom
+
+    @property
+    def zoom(self) -> float:
+        return self._zoom
+
+    def set_zoom(self, factor: float) -> None:
+        self._zoom = min(max(factor, 0.25), 4.0)
+        self._resize_to_layout()
+        self.update()
+
+    def wheelEvent(self, event) -> None:
+        if event is not None and event.modifiers() & Qt.KeyboardModifier.ControlModifier:
+            step = 1.15 if event.angleDelta().y() > 0 else 1 / 1.15
+            self.set_zoom(self._zoom * step)
+            event.accept()
+            return
+        super().wheelEvent(event)
+
+    # -- range analysis badges (RP GUI): overflow / ÷-near-0 on the bars -------
+
+    def set_range_flags(self, overflow: frozenset[str], hazard: frozenset[str]) -> None:
+        self._overflow = frozenset(overflow)
+        self._hazard = frozenset(hazard)
         self.update()
 
     def set_theme(self, theme: Theme) -> None:
@@ -143,7 +178,7 @@ class TimelineWidget(QWidget):
     # -- cycle cursor (VZ-6) ------------------------------------------------
 
     def cycle_at_x(self, px: float) -> int:
-        return max(0, round((px - _MARGIN_X) / _CYCLE_PX))
+        return max(0, round((px - _MARGIN_X) / self._cycle_px()))
 
     def set_cursor_cycle(self, cycle: int | None) -> None:
         self.cursor_cycle = cycle
@@ -247,11 +282,11 @@ class TimelineWidget(QWidget):
     # -- geometry ------------------------------------------------------------
 
     def _x(self, cycle: float) -> float:
-        return _MARGIN_X + cycle * _CYCLE_PX
+        return _MARGIN_X + cycle * self._cycle_px()
 
     def _box_rect(self, start: int, end: int, row: int) -> QRectF:
         x = self._x(start)
-        w = max((end - start) * _CYCLE_PX, _CYCLE_PX)
+        w = max((end - start) * self._cycle_px(), self._cycle_px())
         y = _RULER_H + row * self._row_px()
         return QRectF(x, y, w, self._box_h())
 
@@ -380,6 +415,16 @@ class TimelineWidget(QWidget):
                 Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft,
                 label,
             )
+            # range-analysis badges (RP GUI): ⚠ overflow / ÷ near-zero divisor
+            if box.nid in self._overflow or box.nid in self._hazard:
+                badge_color = QColor(t["error"] if box.nid in self._hazard else t["warning"])
+                painter.setPen(badge_color)
+                badge = "÷!" if box.nid in self._hazard else "⚠"
+                painter.drawText(
+                    rect.adjusted(0, 0, -3, 0),
+                    Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignRight,
+                    badge,
+                )
 
         # PIPE delay registers as explicit, distinct bars on the data path (VZ-8)
         delay_col = QColor(t["accentMuted"])

@@ -86,6 +86,11 @@ class Workspace(QObject):
     problem = pyqtSignal(str)  # user-facing, non-fatal (NF-4 toast)
     densityChanged = pyqtSignal(str)  # 'comfortable' | 'compact' (UI-9)
     cosimFinished = pyqtSignal(object)  # CosimResult — feeds the Bisection view
+    rangeFlagsChanged = pyqtSignal(object, object)  # overflow nids, hazard nids (RP GUI)
+
+    #: sidecar autosave master switch — tests running on shared fixtures turn
+    #: it off so no .pipeforge.toml appears next to repository files (PJ-1)
+    sidecar_enabled = True
 
     def __init__(self) -> None:
         super().__init__()
@@ -96,6 +101,8 @@ class Workspace(QObject):
         self.mat_path: Path | None = None  # opened .mat: session setup override
         self.software_tree: object | None = None  # WorkspaceTree from the .mat (WS-6)
         self.density = "comfortable"  # timeline density, per session (UI-9)
+        self.project: object | None = None  # core.project.Project sidecar (PJ-1)
+        self.project_ranges: dict[str, tuple[float, float]] = {}
         self.inspector_collapsed = False  # right inspector collapsed (UI-11)
         self.source = ""
         self.audit: Audit | None = None
@@ -160,9 +167,67 @@ class Workspace(QObject):
         sv = path.with_suffix(".sv")
         if sv.is_file():
             self.sv_path = sv
+        self._load_sidecar(path)
         self._rearm_watcher()
         self.fileChanged.emit(str(path))
         self._reaudit()
+
+    # -- project sidecar (PJ-1): restore/persist per-design working state -------
+
+    def _load_sidecar(self, m_path: Path) -> None:
+        from pipeforge.core.project import Project, load_for_design
+
+        project = load_for_design(m_path)
+        if project is None:
+            self.project = Project(m=m_path.name)
+            self.project_ranges = {}
+            return
+        self.project = project
+        self.project_ranges = dict(project.ranges)
+        try:
+            from pipeforge.core.costmodel.model import CostModel
+
+            CostModel(project.width, project.scale)
+            self.width, self.scale = project.width, project.scale
+            self.formatChanged.emit(self.width, self.scale)
+        except ValueError:
+            pass
+        sv = project.resolve(m_path.parent, project.sv)
+        if sv is not None and sv.is_file():
+            self.sv_path = sv
+        self.logMessage.emit(f"project: restored {m_path.stem}.pipeforge.toml")
+
+    def save_sidecar(self, create: bool = False) -> None:
+        """Persist the working state next to the .m (PJ-1). Never raises.
+
+        `create=True` writes a new sidecar (explicit user actions: propagating
+        ranges, running cosim); otherwise only an existing sidecar is updated,
+        so merely opening files never litters directories.
+        """
+        if not self.sidecar_enabled or self.m_path is None or self.project is None:
+            return
+        import os
+
+        from pipeforge.core.project import Project, save_project, sidecar_for
+
+        target = sidecar_for(self.m_path)
+        if not create and not target.is_file():
+            return
+        project: Project = self.project  # type: ignore[assignment]
+        project.m = self.m_path.name
+        if self.sv_path is not None:
+            project.sv = os.path.relpath(self.sv_path, self.m_path.parent)
+        project.width, project.scale = self.width, self.scale
+        project.ranges = dict(self.project_ranges)
+        try:
+            save_project(project, target)
+        except OSError as exc:
+            self.logMessage.emit(f"project: could not save sidecar — {exc}")
+
+    def set_project_ranges(self, ranges: dict[str, tuple[float, float]]) -> None:
+        """Ranges the user declared in the Ranges view: persist them (PJ-1)."""
+        self.project_ranges = dict(ranges)
+        self.save_sidecar(create=True)
 
     def set_format(self, width: int, scale: int) -> None:
         """WIDTH/SCALE are workspace-level; all views react live (UI-2)."""
@@ -176,6 +241,7 @@ class Workspace(QObject):
         self.width = width
         self.scale = scale
         self.formatChanged.emit(width, scale)
+        self.save_sidecar()  # updates an existing sidecar only (PJ-1)
         self._reaudit()
 
     def rerun(self) -> None:

@@ -180,6 +180,9 @@ class RangesView(QWidget):
             item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
             self.inputs_table.setItem(r, 0, item)
             lo, hi = self._remembered.get(name, ("", ""))
+            if not lo and not hi and name in self._ws.project_ranges:
+                plo, phi = self._ws.project_ranges[name]  # restored sidecar (PJ-1)
+                lo, hi = f"{plo:.6g}", f"{phi:.6g}"
             self.inputs_table.setItem(r, 1, QTableWidgetItem(lo))
             self.inputs_table.setItem(r, 2, QTableWidgetItem(hi))
         if not self._has_all_ranges():
@@ -279,6 +282,12 @@ class RangesView(QWidget):
             return
         self._report = report
         self._fill_results(report)
+        # persist the declared ranges (PJ-1) and badge the timelines (RP GUI)
+        self._ws.set_project_ranges({k: (iv.lo, iv.hi) for k, iv in declared.items()})
+        self._ws.rangeFlagsChanged.emit(
+            frozenset(n.nid for n in report.overflow_nodes),
+            frozenset(n.nid for n in report.hazard_nodes),
+        )
         overflow = len(report.overflow_nodes)
         hazards = len(report.hazard_nodes)
         fmt = f"{report.fmt_width}/{report.fmt_scale}"

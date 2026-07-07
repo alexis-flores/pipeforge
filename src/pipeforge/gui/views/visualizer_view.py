@@ -42,18 +42,27 @@ class VisualizerView(QWidget):
         self.slack_btn = QPushButton("Show slack")
         self.slack_btn.setCheckable(True)
         self.slack_btn.toggled.connect(self._toggle_slack)
+        from PyQt6.QtWidgets import QLineEdit
+
+        self.find_edit = QLineEdit()
+        self.find_edit.setPlaceholderText("find signal…  (Ctrl+wheel zooms)")
+        self.find_edit.setMaximumWidth(200)
+        self.find_edit.returnPressed.connect(self._find_next)
+        self._find_pos = 0
 
         header = QHBoxLayout()
         header.addWidget(title)
         header.addStretch(1)
+        header.addWidget(self.find_edit)
         header.addWidget(self.slack_btn)
         header.addWidget(export_svg)
         header.addWidget(export_png)
 
         self.timeline = TimelineWidget()
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setWidget(self.timeline)
+        self.scroll = QScrollArea()
+        self.scroll.setWidgetResizable(True)
+        self.scroll.setWidget(self.timeline)
+        scroll = self.scroll
 
         box = QVBoxLayout(self)
         box.setContentsMargins(24, 16, 24, 16)
@@ -64,8 +73,26 @@ class VisualizerView(QWidget):
 
         workspace.auditChanged.connect(self._on_audit)
         workspace.selectionChanged.connect(self.timeline.set_selected)
+        workspace.rangeFlagsChanged.connect(self.timeline.set_range_flags)
         self.timeline.nodeClicked.connect(workspace.select_node)
         self._on_audit(None)
+
+    def _find_next(self) -> None:
+        """Type-to-find: cycle through bars whose label/signal matches (VZ-9)."""
+        needle = self.find_edit.text().strip().lower()
+        if not needle or self._layout_data is None:
+            return
+        boxes = list(self._layout_data.boxes.values())
+        matches = [b for b in boxes if needle in b.label.lower() or needle in b.nid.lower()]
+        if not matches:
+            self.find_edit.setStyleSheet("color: palette(mid);")
+            return
+        self.find_edit.setStyleSheet("")
+        box = matches[self._find_pos % len(matches)]
+        self._find_pos += 1
+        self._ws.select_node(box.nid)
+        rect = self.timeline._box_rect(box.start, box.end, box.row)
+        self.scroll.ensureVisible(int(rect.center().x()), int(rect.center().y()), 120, 80)
 
     def set_theme(self, theme: Theme) -> None:
         self._theme = theme

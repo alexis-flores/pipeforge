@@ -35,6 +35,7 @@ _HINT = "Open a MATLAB file and point at its SystemVerilog DUT, then Run."
 
 #: Plain-language help for the not-self-explanatory options.
 BACKEND_HINTS = {
+    "auto": "cocotb when installed, else the cocotb-free Verilator-native harness",
     "cocotb": "cocotb testbench under Verilator — needs pip install cocotb",
     "verilator": "native Verilator harness — no cocotb needed, only Verilator",
 }
@@ -118,8 +119,8 @@ class CosimView(QWidget):
         self.vectors_spin.setRange(1, 100000)
         self.vectors_spin.setValue(128)
         self.backend_combo = QComboBox()
-        self.backend_combo.addItems(["cocotb", "verilator"])
-        self.backend_hint = QLabel(BACKEND_HINTS["cocotb"])
+        self.backend_combo.addItems(["auto", "cocotb", "verilator"])
+        self.backend_hint = QLabel(BACKEND_HINTS["auto"])
         self.backend_hint.setObjectName("muted")
         self.backend_combo.currentTextChanged.connect(
             lambda t: self.backend_hint.setText(BACKEND_HINTS.get(t, ""))
@@ -182,6 +183,7 @@ class CosimView(QWidget):
     # -- input plumbing ---------------------------------------------------------
 
     def _on_file(self, _path: str) -> None:
+        self._apply_project()
         if self._ws.m_path and not self.top_edit.text():
             self.top_edit.setText(self._ws.m_path.stem)
         if self._ws.sv_path is not None:
@@ -191,6 +193,54 @@ class CosimView(QWidget):
             if detected is not None:
                 self.include_edit.setText(str(detected))
         self._sync_reqs()
+
+    def _apply_project(self) -> None:
+        """Restore the sidecar's cosim config (PJ-1)."""
+        from pipeforge.core.project import Project
+
+        project = self._ws.project
+        if not isinstance(project, Project) or self._ws.m_path is None:
+            return
+        cfg = project.cosim
+        base = self._ws.m_path.parent
+        if cfg.top:
+            self.top_edit.setText(cfg.top)
+        if cfg.backend in BACKEND_HINTS:
+            self.backend_combo.setCurrentText(cfg.backend)
+        if cfg.cadence:
+            self.cadence_combo.setCurrentText(cfg.cadence)
+        if cfg.vectors:
+            self.vectors_spin.setValue(cfg.vectors)
+        if cfg.include:
+            self.include_edit.setText(str((base / cfg.include[0]).resolve()))
+        if cfg.sources:
+            self.sources_edit.setPlainText(
+                "\n".join(str((base / s).resolve()) for s in cfg.sources)
+            )
+
+    def _store_project(self) -> None:
+        """Persist the cosim config into the sidecar (PJ-1)."""
+        import os
+
+        from pipeforge.core.project import Project
+
+        project = self._ws.project
+        if not isinstance(project, Project) or self._ws.m_path is None:
+            return
+        base = self._ws.m_path.parent
+        cfg = project.cosim
+        cfg.top = self.top_edit.text()
+        cfg.backend = self.backend_combo.currentText()
+        cfg.cadence = self.cadence_combo.currentText()
+        cfg.vectors = self.vectors_spin.value()
+        include = self.include_edit.text().strip()
+        cfg.include = [os.path.relpath(include, base)] if include else []
+        cfg.sources = [
+            os.path.relpath(line.strip(), base)
+            for line in self.sources_edit.toPlainText().splitlines()
+            if line.strip()
+        ]
+        self._ws.save_sidecar(create=True)
 
     def _detect_include(self) -> Path | None:
         """Walk up from the open .m looking for a bundled nkMatlib rtl dir."""
@@ -256,6 +306,7 @@ class CosimView(QWidget):
         # uses the VCD-trace fallback (best-effort); probe-based localization is
         # for generated/probe-instrumented RTL.
         work = (self._ws.m_path.parent / "cosim_work") if self._ws.m_path else Path("cosim_work")
+        backend = self.backend_combo.currentText()
         return {
             "dut_sv": self._ws.sv_path,
             "dut_module": self.top_edit.text() or (self._ws.m_path.stem if self._ws.m_path else ""),
@@ -263,7 +314,7 @@ class CosimView(QWidget):
             "extra_sources": sources,
             "include_dirs": includes,
             "vector_count": self.vectors_spin.value(),
-            "backend": self.backend_combo.currentText(),
+            "backend": None if backend == "auto" else backend,
             "cadence": self.cadence_combo.currentText(),
             "bisect_on_failure": self.bisect_check.isChecked(),
         }
@@ -272,6 +323,7 @@ class CosimView(QWidget):
         kwargs = self.run_kwargs()
         if kwargs is None:
             return
+        self._store_project()  # a real run is worth remembering (PJ-1)
         import time
 
         self.run_btn.setEnabled(False)

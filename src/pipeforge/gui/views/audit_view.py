@@ -41,6 +41,19 @@ class AuditView(QWidget):
         self.findings = FindingsTable()
         self.findings.findingActivated.connect(self._on_finding)
 
+        from PyQt6.QtWidgets import QHBoxLayout, QPushButton
+
+        self.optimize_btn = QPushButton("Write optimized .m…")
+        self.optimize_btn.setToolTip(
+            "Apply the findings' rewrites (RECIP/CDIV/SERDIV/POW/CSE) to a copy "
+            "of the source and open it — with an honest accuracy comparison"
+        )
+        self.optimize_btn.clicked.connect(self._optimize)
+        self.optimize_btn.setEnabled(False)
+        actions = QHBoxLayout()
+        actions.addStretch(1)
+        actions.addWidget(self.optimize_btn)
+
         split = QSplitter(Qt.Orientation.Vertical)
         split.addWidget(scroll)
         split.addWidget(self.findings)
@@ -53,12 +66,14 @@ class AuditView(QWidget):
         box.addWidget(title)
         box.addWidget(self._summary)
         box.addWidget(split, 1)
+        box.addLayout(actions)
 
         # UI-9: apply the session density to this view's timeline
         self.timeline.set_density(getattr(workspace, "density", "comfortable"))
 
         workspace.auditChanged.connect(self._on_audit)
         workspace.selectionChanged.connect(self.timeline.set_selected)
+        workspace.rangeFlagsChanged.connect(self.timeline.set_range_flags)
         self.timeline.nodeClicked.connect(workspace.select_node)
         if hasattr(workspace, "densityChanged"):
             workspace.densityChanged.connect(self.timeline.set_density)
@@ -66,12 +81,41 @@ class AuditView(QWidget):
     def set_theme(self, theme: Theme) -> None:
         self.timeline.set_theme(theme)
 
+    def _optimize(self) -> None:
+        """OP-1: apply the findings' rewrites to a copy of the open source."""
+        from pathlib import Path
+
+        from PyQt6.QtWidgets import QFileDialog
+
+        from pipeforge.core.optimize.rewrite import optimize_source
+
+        if not self._ws.source or self._ws.m_path is None:
+            return
+        result = optimize_source(self._ws.source, self._ws.cost_model)
+        if not result.changed:
+            self._summary.setText(self._summary.text() + f"  Optimize: {result.note}.")
+            return
+        default = str(self._ws.m_path.with_name(f"{self._ws.m_path.stem}_opt.m"))
+        fname, _ = QFileDialog.getSaveFileName(self, "Write optimized MATLAB", default, "*.m")
+        if not fname:
+            return
+        Path(fname).write_text(result.source, encoding="utf-8")
+        worst = max((a.max_delta for a in result.accuracy), default=0.0)
+        self._ws.logMessage.emit(
+            f"optimize: {len(result.rewrites)} rewrite(s), critical path "
+            f"{result.latency_before} -> {result.latency_after} cycles, "
+            f"worst output |Δ| {worst:.3g} vs the original"
+        )
+        self._ws.open_file(Path(fname))  # show the improvement immediately
+
     def _on_audit(self, audit: object) -> None:
         if not isinstance(audit, Audit):
             self.timeline.set_layout(None)
             self.findings.set_findings([], audited=False)
             self._summary.setText("Open a MATLAB file to audit its pipeline latency.")
+            self.optimize_btn.setEnabled(False)
             return
+        self.optimize_btn.setEnabled(bool(audit.findings))
         self.timeline.set_layout(layout_for_audit(audit))
         self.findings.set_findings(audit.findings, audited=True)
         census = audit.census
