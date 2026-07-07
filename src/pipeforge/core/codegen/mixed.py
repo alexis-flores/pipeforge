@@ -41,6 +41,7 @@ NARROWABLE_MODULES = frozenset(
         "elem_smul",
         "elem_ssqr",
         "matscale",
+        "delay",  # z^-1 register: width-independent latency, value-preserving
     }
 )
 

@@ -52,8 +52,9 @@ def golden_outputs(audit: Audit, vectors: list[Vector], fmt: FxFormat) -> dict[s
     """Golden-model output streams, keyed by output name (CS-1c reference)."""
     outs: dict[str, list[int]] = {}
     out_nodes = {n.signal: n.nid for n in audit.dag.outputs() if n.signal}
+    state: dict[str, list[int]] = {}  # z^-1 history threads across the stream (SD-1)
     for vec in vectors:
-        values = evaluate_fixed(audit.dag, dict(vec.items()), fmt)
+        values = evaluate_fixed(audit.dag, dict(vec.items()), fmt, state=state)
         for name, nid in out_nodes.items():
             outs.setdefault(name, []).append(values[nid][0])
     return outs

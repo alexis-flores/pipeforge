@@ -95,7 +95,8 @@ class Dag:
         for s in self.statements:
             last_def[s.target] = s.root
         consumed = self.consumers()
-        outs = [nid for nid in last_def.values() if consumed.get(nid, 0) == 0]
+        # dedupe: `s = y` aliases both targets to one node — one port, not two
+        outs = list(dict.fromkeys(nid for nid in last_def.values() if consumed.get(nid, 0) == 0))
         if not outs and self.statements:
             outs = [self.statements[-1].root]
         return [self.nodes[nid] for nid in outs]

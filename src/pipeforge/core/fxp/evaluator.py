@@ -38,16 +38,34 @@ def _felem(v: list[float], i: int) -> float:
     return v[i] if len(v) > 1 else v[0]
 
 
+#: cross-sample state for z^-1 delay nodes: node id -> previous-sample value.
+#: Callers evaluating a *stream* thread one dict across calls (SD-1); a None
+#: state treats every sample as the first (delay outputs zero-history).
+DelayState = dict[str, FixedVec]
+FloatDelayState = dict[str, FloatVec]
+
+
 def evaluate_fixed(
-    dag: Dag, inputs: dict[str, FixedVec | float | list[float]], fmt: FxFormat
+    dag: Dag,
+    inputs: dict[str, FixedVec | float | list[float]],
+    fmt: FxFormat,
+    state: DelayState | None = None,
 ) -> dict[str, FixedVec]:
     """Evaluate every node bit-exactly. Float inputs are converted TOFIXED-style.
 
-    Returns raw bit-pattern vectors keyed by node ID (FX-3).
+    Returns raw bit-pattern vectors keyed by node ID (FX-3). `state` carries
+    z^-1 delay history across successive samples (SD-1).
     """
     values: dict[str, FixedVec] = {}
     for nid in dag.order:
         node = dag.nodes[nid]
+        if node.module == "delay":
+            arg = values[node.args[0]]
+            prev = state.get(nid) if state is not None else None
+            values[nid] = prev if prev is not None else [0] * len(arg)
+            if state is not None:
+                state[nid] = list(arg)
+            continue
         values[nid] = _eval_fixed_node(node, values, inputs, fmt)
     return values
 
@@ -88,6 +106,10 @@ def apply_fixed(node: Node, args: list[FixedVec], fmt: FxFormat) -> FixedVec:
     shifted operand streams to classify delay-skew bugs, BI-2).
     """
     mod = node.module
+    if mod == "delay":
+        # stateful: replaying a z^-1 stage from instantaneous operands is
+        # meaningless — stream-level callers use evaluate_* with a state dict
+        raise EvalError(f"delay node {node.nid} cannot be replayed statelessly")
     if mod == "":
         # wiring: index/range/concat/wire — pass-through semantics
         if node.op == "concat":
@@ -141,16 +163,27 @@ def apply_fixed(node: Node, args: list[FixedVec], fmt: FxFormat) -> FixedVec:
 
 
 def evaluate_float(
-    dag: Dag, inputs: dict[str, FixedVec | float | list[float]], fmt: FxFormat
+    dag: Dag,
+    inputs: dict[str, FixedVec | float | list[float]],
+    fmt: FxFormat,
+    state: FloatDelayState | None = None,
 ) -> dict[str, FloatVec]:
     """Float64 reference evaluation of the same DAG (the 'MATLAB' answer, FX-4).
 
     Fixed-point raw-int inputs are interpreted in the given format so both
-    evaluations see the same stimulus.
+    evaluations see the same stimulus. `state` carries z^-1 delay history
+    across successive samples (SD-1).
     """
     values: dict[str, FloatVec] = {}
     for nid in dag.order:
         node = dag.nodes[nid]
+        if node.module == "delay":
+            arg = values[node.args[0]]
+            prev = state.get(nid) if state is not None else None
+            values[nid] = prev if prev is not None else [0.0] * len(arg)
+            if state is not None:
+                state[nid] = list(arg)
+            continue
         values[nid] = _eval_float_node(node, values, inputs, fmt)
     return values
 

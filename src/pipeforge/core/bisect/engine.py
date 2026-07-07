@@ -74,8 +74,9 @@ def golden_intermediates(
 ) -> dict[str, list[FixedVec]]:
     """Golden value streams for every node id (FX-3 over the stimulus set)."""
     streams: dict[str, list[FixedVec]] = {nid: [] for nid in dag.order}
+    state: dict[str, FixedVec] = {}  # z^-1 history threads across the stream (SD-1)
     for vec in stimulus:
-        values = evaluate_fixed(dag, dict(vec.items()), fmt)
+        values = evaluate_fixed(dag, dict(vec.items()), fmt, state=state)
         for nid in dag.order:
             streams[nid].append(values[nid])
     return streams

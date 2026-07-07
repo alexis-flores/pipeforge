@@ -71,10 +71,12 @@ def _evaluate_point(
     out_nodes = {n.signal: n.nid for n in audit.dag.outputs() if n.signal}
     refs: dict[str, list[float]] = {k: [] for k in out_nodes}
     meas: dict[str, list[float]] = {k: [] for k in out_nodes}
+    xstate: dict[str, list[int]] = {}  # z^-1 histories thread across the stream (SD-1)
+    fstate: dict[str, list[float]] = {}
     for vec in stim:
         inputs_map: dict[str, list[int] | float | list[float]] = {k: [v] for k, v in vec.items()}
-        fixed = evaluate_fixed(audit.dag, inputs_map, fmt)
-        ref = evaluate_float(audit.dag, inputs_map, fmt)
+        fixed = evaluate_fixed(audit.dag, inputs_map, fmt, state=xstate)
+        ref = evaluate_float(audit.dag, inputs_map, fmt, state=fstate)
         for name, nid in out_nodes.items():
             refs[name].append(ref[nid][0])
             meas[name].append(to_float(fixed[nid][0], fmt))

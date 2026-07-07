@@ -91,8 +91,18 @@ def test_constants_use_tofxd() -> None:
     assert "`TOFXD(" in sv
 
 
+def test_index_wiring_passes_through() -> None:
+    # WR-1: indexing is a value-preserving pass-through of its base operand
+    # in the scalar-lane subset — exactly the golden model's semantics
+    audit = audit_source("y = n(:,1) + a;", "t.m", CM)
+    sv = generate_sv(audit, "gen_index")
+    assert "module gen_index" in sv
+    assert ".a (n_0)" in sv  # the index aliases its base signal
+
+
 def test_unsupported_construct_is_clear_error() -> None:
-    audit = audit_source("y = n(:,1);", "t.m", CM)
+    # multi-element concatenation has no single-wire representation (WR-1)
+    audit = audit_source("y = [a b] + [c d];", "t.m", CM)
     with pytest.raises(CodegenError, match="no nkMatlib mapping"):
         generate_sv(audit, "gen_bad")
 

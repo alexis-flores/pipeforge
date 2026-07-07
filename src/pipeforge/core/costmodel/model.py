@@ -30,6 +30,10 @@ KNOWN_FUNCS: dict[str, str] = {
     "ones": "elem_same",
     "zeros": "elem_same",
     "reshape": "reshape",  # pure column-major index remap (AR-1); zero hardware
+    # delay(x): z^-1 unit delay — PipeForge streaming extension (SD-1). In
+    # MATLAB, simulate with: function y = delay(x); persistent s; if
+    # isempty(s), s = zeros(size(x)); end; y = s; s = x; end
+    "delay": "delay",
 }
 
 
@@ -119,6 +123,11 @@ class CostModel:
             "selcols": 0,
             "selrows": 0,
             "pipe": 1,  # `PIPE matching delay: 1 cycle per stage crossed
+            # delay (z^-1): scheduling latency ZERO on purpose (SD-1). A register
+            # that also advanced the stage number would be sample-transparent
+            # (that is exactly what a `PIPE is); the previous sample appears at
+            # the *same* stage — one physical register, no schedule advance.
+            "delay": 0,
         }
 
     def latency_of(self, module: str) -> int:

@@ -13,6 +13,41 @@ from pathlib import Path
 
 from pipeforge import __version__
 
+#: The star (✦ for the person who really likes stars). Shown on a bare
+#: `pipeforge-cli` in a terminal — never in pipes, CI logs, or tests.
+BANNER = r"""
+                         ✵
+                         ✵
+                 ·       ✵       ·
+                   ✵     ✵     ✵
+                     ✵   ✵   ✵
+                       ✵ ✵ ✵
+      ✵ ✵ ✵ ✵ ✵ ✵ ✵ ✵ ✵ ✵ ✵ ✵ ✵ ✵ ✵ ✵ ✵ ✵ ✵
+                       ✵ ✵ ✵
+                     ✵   ✵   ✵
+                   ✵     ✵     ✵
+                 ·       ✵       ·
+                         ✵
+                         ✵
+
+        P I P E F O R G E   —   MATLAB ✵ nkMatlib ✵ FPGA
+"""
+
+
+def _maybe_banner() -> None:
+    """Print the star on interactive bare invocations (BN-1).
+
+    PIPEFORGE_BANNER=0 silences it; =1 forces it (e.g. for screenshots).
+    Non-TTY stdout (pipes, CI, tests) never sees it.
+    """
+    import os
+
+    flag = os.environ.get("PIPEFORGE_BANNER", "")
+    if flag == "0":
+        return
+    if flag == "1" or (hasattr(sys.stdout, "isatty") and sys.stdout.isatty()):
+        print(BANNER)
+
 
 def _cmd_audit(args: argparse.Namespace) -> int:
     import json as json_mod
@@ -204,7 +239,7 @@ def _cmd_cosim(args: argparse.Namespace) -> int:
             include_dirs=[Path(p) for p in (args.include or [])],
             vector_count=args.vectors,
             cadence=args.cadence,
-            backend=args.backend,
+            backend=None if args.backend == "auto" else args.backend,
             probes=probes,
             bisect_on_failure=args.bisect,
             vectors=vectors,
@@ -541,6 +576,142 @@ def _cmd_export_tb(args: argparse.Namespace) -> int:
         f"{module}.sv tb_check.sv --top-module tb_check && obj_dir/Vtb_check"
     )
     return 0
+
+
+def _cmd_optimize(args: argparse.Namespace) -> int:
+    """OP-1: apply the auditor's rewrites to the source and report honestly."""
+    from pipeforge.core.costmodel.model import CostModel
+    from pipeforge.core.optimize.rewrite import optimize_source
+
+    src = _read(args.file)
+    if src is None:
+        return 2
+    cm = CostModel(args.width, args.scale)
+    result = optimize_source(src, cm, vectors=args.vectors)
+    if not result.changed:
+        print(f"optimize {Path(args.file).name}: {result.note or 'nothing to do'}")
+        return 0
+    print(f"optimize {Path(args.file).name}: {len(result.rewrites)} rewrite(s)")
+    for rw in result.rewrites:
+        print(f"  [{rw.tag:<6}] line {rw.line}: {rw.description}")
+    delta = result.latency_after - result.latency_before
+    print(
+        f"  critical path: {result.latency_before} -> {result.latency_after} cycles "
+        f"({delta:+d}); dividers: {result.dividers_before} -> {result.dividers_after}"
+    )
+    if delta > 0:
+        print(
+            "  note: latency rose — the divisions were parallel, so RECIP trades "
+            "depth for divider area; keep whichever matters for this design"
+        )
+    print("  accuracy vs the original fixed-point pipeline (rounding moves — see docs):")
+    for acc in result.accuracy:
+        print(
+            f"    {acc.name}: max |Δ| {acc.max_delta:.3g}, SQNR "
+            f"{acc.sqnr_before_db:.1f} -> {acc.sqnr_after_db:.1f} dB"
+        )
+    if args.output:
+        Path(args.output).write_text(result.source, encoding="utf-8")
+        print(f"wrote {args.output}")
+    elif args.in_place:
+        Path(args.file).write_text(result.source, encoding="utf-8")
+        print(f"rewrote {args.file} in place")
+    else:
+        print("--- optimized source (use -o FILE or --in-place to write) ---")
+        print(result.source, end="")
+    return 0
+
+
+def _cmd_ci(args: argparse.Namespace) -> int:
+    """PJ-2: run the whole configured gate from one project sidecar."""
+    from pipeforge.core.audit.engine import audit_source
+    from pipeforge.core.costmodel.model import CostModel
+    from pipeforge.core.project import load_project
+
+    toml_path = Path(args.project)
+    try:
+        project = load_project(toml_path)
+    except (OSError, ValueError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    base = toml_path.parent
+    m_path = project.resolve(base, project.m)
+    if m_path is None or not m_path.is_file():
+        print(f"error: [design] m = {project.m!r} not found next to {toml_path}", file=sys.stderr)
+        return 2
+    cm = CostModel(project.width, project.scale)
+    src = m_path.read_text(encoding="utf-8")
+    audit = audit_source(src, m_path.name, cm)
+    failed = False
+    print(f"ci {toml_path.name} @ {cm.width}/{cm.scale}")
+    print(
+        f"  audit: {audit.total_latency} cycles, {sum(audit.census.values())} instances, "
+        f"{len(audit.findings)} finding(s), {len(audit.skipped)} skipped"
+    )
+    if project.ranges:
+        from pipeforge.core.ranges.interval import Interval
+        from pipeforge.core.ranges.propagate import RangeError, propagate
+
+        try:
+            report = propagate(
+                audit.dag,
+                {k: Interval(lo, hi) for k, (lo, hi) in project.ranges.items()},
+                cm,
+            )
+            overflow, hazards = len(report.overflow_nodes), len(report.hazard_nodes)
+            verdict = "ok" if not (overflow or hazards) else "FAIL"
+            print(f"  ranges: {verdict} — {overflow} overflow, {hazards} ÷-near-0")
+            failed |= bool(overflow or hazards)
+        except RangeError as exc:
+            print(f"  ranges: FAIL — {exc}")
+            failed = True
+    sv_path = project.resolve(base, project.sv)
+    if sv_path is not None and sv_path.is_file():
+        from pipeforge.core.svlint.checks import lint_source
+
+        lint = lint_source(
+            sv_path.read_text(encoding="utf-8", errors="replace"), sv_path.name, cm, audit=audit
+        )
+        if args.sarif:
+            from pipeforge.core.reports.sarif import sarif_document
+
+            Path(args.sarif).write_text(
+                sarif_document(lint, str(sv_path), __version__), encoding="utf-8"
+            )
+        print(f"  lint: {'clean' if not lint.findings else f'{len(lint.findings)} finding(s)'}")
+        failed |= bool(lint.findings)
+        cfg = project.cosim
+        if cfg.top:
+            from pipeforge.core.cosim.runner import CosimUnavailable, run_cosim
+
+            try:
+                result = run_cosim(
+                    audit,
+                    dut_sv=sv_path,
+                    dut_module=cfg.top,
+                    work_dir=base / "cosim_work",
+                    include_dirs=[base / d for d in cfg.include],
+                    extra_sources=[base / s for s in cfg.sources],
+                    vector_count=cfg.vectors,
+                    cadence=cfg.cadence,
+                    backend=None if cfg.backend == "auto" else cfg.backend,
+                    bisect_on_failure=True,
+                )
+            except CosimUnavailable as exc:
+                print(f"  cosim: tools unavailable — {exc}", file=sys.stderr)
+                return 3
+            if args.junit_xml:
+                from pipeforge.core.reports.junit import junit_xml
+
+                Path(args.junit_xml).write_text(
+                    junit_xml(result, f"cosim.{cfg.top}"), encoding="utf-8"
+                )
+            print(f"  cosim: {'PASS' if result.passed else 'FAIL'} [{result.harness_backend}]")
+            if not result.passed and result.failure_file:
+                print(f"         replay: {result.failure_file}")
+            failed |= not result.passed
+    print(f"  gate: {'FAIL' if failed else 'PASS'}")
+    return 1 if failed else 0
 
 
 def _cmd_report(args: argparse.Namespace) -> int:
@@ -1074,9 +1245,10 @@ def build_parser() -> argparse.ArgumentParser:
     p_cosim.add_argument("--work-dir", help="working directory for generated collateral")
     p_cosim.add_argument(
         "--backend",
-        choices=("cocotb", "verilator"),
-        default="cocotb",
-        help="harness backend: cocotb (default) or the cocotb-free verilator-native path (TL-1)",
+        choices=("auto", "cocotb", "verilator"),
+        default="auto",
+        help="harness backend: auto (default: cocotb when importable, else the "
+        "cocotb-free verilator-native path), or force one (TL-1/TL-2)",
     )
     p_cosim.add_argument(
         "--cadence",
@@ -1172,6 +1344,29 @@ def build_parser() -> argparse.ArgumentParser:
     )
     _add_fixedp_args(p_extb)
     p_extb.set_defaults(func=_cmd_export_tb)
+
+    p_opt = sub.add_parser(
+        "optimize",
+        help="apply the auditor's rewrites (RECIP/CDIV/SERDIV/POW/CSE) to the source (OP-1)",
+    )
+    p_opt.add_argument("file", help="MATLAB script (.m)")
+    p_opt.add_argument("-o", "--output", help="write the optimized source here")
+    p_opt.add_argument(
+        "--in-place", action="store_true", help="overwrite the input file with the result"
+    )
+    p_opt.add_argument(
+        "--vectors", type=int, default=64, help="vectors for the accuracy comparison"
+    )
+    _add_fixedp_args(p_opt)
+    p_opt.set_defaults(func=_cmd_optimize)
+
+    p_ci = sub.add_parser(
+        "ci", help="run the whole configured gate from a .pipeforge.toml sidecar (PJ-2)"
+    )
+    p_ci.add_argument("project", help="design sidecar (model.pipeforge.toml)")
+    p_ci.add_argument("--junit-xml", metavar="FILE", help="write cosim results as JUnit XML")
+    p_ci.add_argument("--sarif", metavar="FILE", help="write lint findings as SARIF")
+    p_ci.set_defaults(func=_cmd_ci)
 
     p_report = sub.add_parser("report", help="one self-contained HTML design-review report (RH-1)")
     p_report.add_argument("file", help="MATLAB script (.m)")
@@ -1336,6 +1531,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
     if args.command is None:
+        _maybe_banner()
         parser.print_help()
         return 0
     func: object = getattr(args, "func", None)

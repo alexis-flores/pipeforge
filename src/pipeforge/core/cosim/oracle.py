@@ -88,9 +88,10 @@ def run_vector_oracle(
 
     golden_float: dict[str, list[float]] = {sig: [] for sig in out_nodes}
     golden_raw: dict[str, list[int]] = {sig: [] for sig in out_nodes}
+    state: dict[str, list[int]] = {}  # z^-1 history threads across the stream (SD-1)
     for i in range(lanes):
         vec = {name: from_float(stream[i % len(stream)], fmt) for name, stream in inputs.items()}
-        values = evaluate_fixed(audit.dag, dict(vec.items()), fmt)
+        values = evaluate_fixed(audit.dag, dict(vec.items()), fmt, state=state)
         for sig, nid in out_nodes.items():
             golden_raw[sig].append(values[nid][0])
             golden_float[sig].append(to_float(values[nid][0], fmt))

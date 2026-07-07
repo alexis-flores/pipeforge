@@ -129,13 +129,18 @@ def _apply(
     hazard = False
     use_affine = method == "affine" and all(a in affs for a in node.args)
 
-    if mod == "" or mod in ("transp", "elem_same", "elem_snorm", "selcols", "selrows"):
+    if mod == "" or mod in ("transp", "elem_same", "elem_snorm", "selcols", "selrows", "delay"):
+        # delay (z^-1): the previous sample comes from the same declared range
         iv = args[0] if args else Interval(0.0, 0.0)
         if len(args) > 1:  # concat/range: hull of elements
             for other in args[1:]:
                 iv = iv.hull(other)
-        if use_affine and node.args:
+        if use_affine and node.args and mod != "delay":
+            # delay must NOT alias affine terms: the previous sample is not
+            # linearly correlated with the current one (x - delay(x) != 0)
             affs[node.nid] = affs[node.args[0]]
+        elif use_affine and mod == "delay":
+            affs[node.nid] = Affine.from_interval(iv)
         return iv, hazard
 
     if use_affine:
@@ -311,9 +316,10 @@ def measured_ranges(dag: Dag, snapshot: object, cm: CostModel) -> dict[str, Inte
     fmt = FxFormat(cm.width, cm.scale)
     lanes = max(len(v) for v in streams.values())
     acc: dict[str, tuple[float, float]] = {}
+    state: dict[str, list[float]] = {}  # z^-1 history threads across the stream (SD-1)
     for i in range(lanes):
         vec = {label: vals[i % len(vals)] for label, vals in streams.items()}
-        values = evaluate_float(dag, dict(vec.items()), fmt)
+        values = evaluate_float(dag, dict(vec.items()), fmt, state=state)
         for nid, fvec in values.items():
             for x in fvec:
                 lo, hi = acc.get(nid, (x, x))

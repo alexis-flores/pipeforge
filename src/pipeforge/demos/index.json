@@ -78,5 +78,16 @@
     "command": "pipeforge-cli matlab snapshot {dir}/matlab/params.mat",
     "gui": "Open params.mat, press Ctrl+Shift+M, then browse the Workspace view (filter, sort, dotted cfg.* fields).",
     "view": "golden"
+  },
+  {
+    "id": "08_fir",
+    "title": "Streaming state: a 3-tap FIR (delay taps)",
+    "files": [
+      "08_fir.m"
+    ],
+    "description": "delay(x) is the previous sample (z^-1): one register, zero schedule cycles. Generate the RTL and co-simulate — the stateful golden model matches bit for bit. A MATLAB-runnable delay() stub is in the README.",
+    "command": "pipeforge-cli codegen {dir}/08_fir.m -m fir3 -o fir3.sv && pipeforge-cli cosim {dir}/08_fir.m --sv fir3.sv --top fir3 --include matlib-main/rtl",
+    "gui": "Open it; the Audit shows the delay registers; Codegen emits them as pipes without stage advance.",
+    "view": "audit"
   }
 ]

@@ -134,7 +134,10 @@ def observations_from_vcd(
     targets: dict[str, tuple[str, int]] = {}  # nid -> (symbol, ready stage)
     for nid in dag.order:
         node = dag.nodes[nid]
-        if node.module in ("", "input", "const", "reshape"):
+        # delay (z^-1) is state: its signal is one sample behind its stage
+        # suffix by construction, so the stage-aligned reconstruction would
+        # report a false divergence — leave it unobserved (SD-1)
+        if node.module in ("", "input", "const", "reshape", "delay"):
             continue
         sym = name_to_sym.get(node_signal_name(node))
         if sym is not None:

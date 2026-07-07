@@ -16,7 +16,7 @@ CM = CostModel(16, 12)
 
 def test_index_loads_and_files_exist() -> None:
     entries = load_index()
-    assert len(entries) == 7
+    assert len(entries) == 8
     ids = [e.demo_id for e in entries]
     assert ids == sorted(ids)  # stable, numbered ordering
     for entry in entries:

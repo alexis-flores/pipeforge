@@ -184,6 +184,9 @@ class _Emitter:
                 # wires — no instance, no latency (AR-3/AR-5)
                 self.sig[node.nid] = self.sig[node.args[0]]
                 continue
+            if node.module == "delay":
+                self._emit_delay(node)
+                continue
             self._emit_operator(node)
 
         total = self.audit.total_latency
@@ -291,7 +294,11 @@ endmodule
         return self._adapt(piped, want_width)
 
     def _emit_wiring(self, node: Node) -> None:
-        if node.op == "wire" and len(node.args) == 1:
+        # wire/index/field/range are value-preserving pass-throughs of their
+        # base operand in the scalar-lane RTL subset — exactly the golden
+        # model's semantics for them (WR-1). Multi-element concat has no
+        # single-wire representation and stays an explicit error.
+        if node.op in ("wire", "index", "field", "range") and node.args:
             arg = node.args[0]
             if arg in self.const_expr:
                 base = node.signal or self._tmp_base(node)
@@ -303,10 +310,38 @@ endmodule
                 return
             self.sig[node.nid] = self.sig[arg]
             return
+        if node.op == "concat" and len(node.args) == 1:
+            self.sig[node.nid] = self.sig[node.args[0]]
+            return
         raise CodegenError(
             f"line {node.line}: '{node.op}' ({node.label}) has no nkMatlib mapping; "
-            "rewrite the MATLAB without indexing/concatenation or extend the generator"
+            "multi-element concatenation cannot be expressed as scalar-lane RTL — "
+            "rewrite the MATLAB or extend the generator"
         )
+
+    def _emit_delay(self, node: Node) -> None:
+        """z^-1 sample delay (SD-1): one register with NO stage advance.
+
+        In the slot algebra `signal_m at clock c carries sample (c-m)`, a
+        register that also increments the stage suffix is sample-transparent
+        (that is what a `PIPE is). Registering the data while *keeping* the
+        stage number is exactly "previous sample at the same stage".
+        """
+        arg = node.args[0]
+        if arg in self.const_expr:
+            raise CodegenError(f"line {node.line}: delay() of a constant is meaningless")
+        src = self._pipe(self.sig[arg], node.ready)
+        base = node.signal or self._tmp_base(node)
+        out = self._claim(base, node.ready)
+        out = _Sig(out.base, out.cycle, src.width)
+        self._declare(out)
+        self.body.append(
+            f"// stage {node.ready}: {node.label} — z^-1: register, no stage advance\n"
+            f"pipe #(.WIDTH($bits({src.full})), .DELAY(1)) i_delay_{out.full}\n"
+            f"  (\n    .g (g), .i ({src.full}), .o ({out.full})\n  );"
+        )
+        self.body.append("")
+        self.sig[node.nid] = out
 
     def _emit_operator(self, node: Node) -> None:
         ports = _MODULE_PORTS.get(node.module)

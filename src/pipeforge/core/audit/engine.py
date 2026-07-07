@@ -7,7 +7,8 @@ from dataclasses import dataclass
 from pipeforge.core.audit.findings import Finding, find_findings
 from pipeforge.core.costmodel.model import CostModel
 from pipeforge.core.frontend.dag import Dag, DagBuilder, Node, build_dag
-from pipeforge.core.frontend.parser import Skipped, parse_program
+from pipeforge.core.frontend.functions import parse_with_functions
+from pipeforge.core.frontend.parser import Skipped
 
 
 @dataclass
@@ -63,7 +64,7 @@ def audit_source(src: str, filename: str, cm: CostModel, snapshot: object | None
     mismatches surface as FORMAT findings; without one, output is
     bit-identical to the static analysis (pinned by golden files).
     """
-    assigns, skipped = parse_program(src)
+    assigns, skipped = parse_with_functions(src)  # local functions inline (FN-1)
     builder, problems = build_dag(assigns, cm, snapshot=snapshot)
     skipped = sorted([*skipped, *problems], key=lambda s: s.line)
     findings = find_findings(builder, cm)
