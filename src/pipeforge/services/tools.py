@@ -47,6 +47,12 @@ _PROBES: list[tuple[str, list[str], str, str]] = [
         "formal verification (FV)",
         "pip install symbiyosys or distro package",
     ),
+    (
+        "gtkwave",
+        ["gtkwave", "--version"],
+        "open co-sim divergence waveforms (WV)",
+        "sudo pacman -S gtkwave / apt install gtkwave / brew install gtkwave",
+    ),
 ]
 
 _PY_PROBES: list[tuple[str, str, str]] = [

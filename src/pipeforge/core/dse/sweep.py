@@ -37,6 +37,7 @@ class SweepPoint:
     max_abs_error: float
     rms_error: float
     sqnr_db: float
+    dsp: int = 0  # hard multiplier tiles at the default device family (RE-1)
 
     @property
     def key(self) -> tuple[int, int]:
@@ -87,6 +88,8 @@ def _evaluate_point(
             rms = max(rms, s.rms_error)
         if math.isfinite(s.sqnr_db):
             sqnr = min(sqnr, s.sqnr_db)
+    from pipeforge.core.costmodel.resources import estimate_resources
+
     return SweepPoint(
         width=width,
         scale=scale,
@@ -96,6 +99,7 @@ def _evaluate_point(
         max_abs_error=max_abs,
         rms_error=rms,
         sqnr_db=sqnr,
+        dsp=estimate_resources(audit.census, cm).dsp,
     )
 
 
@@ -191,6 +195,7 @@ def export_csv(points: list[SweepPoint], path: Path) -> None:
         "max_abs_error",
         "rms_error",
         "sqnr_db",
+        "dsp",
     ]
     with path.open("w", newline="", encoding="utf-8") as fh:
         writer = csv.DictWriter(fh, fieldnames=fields)

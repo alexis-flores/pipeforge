@@ -15,24 +15,69 @@ from pipeforge import __version__
 
 
 def _cmd_audit(args: argparse.Namespace) -> int:
+    import json as json_mod
+
     from pipeforge.core.audit.engine import audit_source
-    from pipeforge.core.audit.report import render_json, render_text
+    from pipeforge.core.audit.report import render_text, to_payload
     from pipeforge.core.costmodel.model import CostModel
 
     path = Path(args.file)
-    try:
-        src = path.read_text(encoding="utf-8")
-    except OSError as exc:
-        print(f"error: {exc}", file=sys.stderr)
-        return 2
     cm = CostModel(args.width, args.scale)
     snapshot = _load_snapshot_arg(getattr(args, "snapshot", None))
-    audit = audit_source(src, path.name, cm, snapshot=snapshot)
-    print(render_json(audit) if args.json else render_text(audit), end="")
-    return 0
+    last_latency: list[int] = []
+
+    def run_once() -> int:
+        try:
+            src = path.read_text(encoding="utf-8")
+        except OSError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 2
+        audit = audit_source(src, path.name, cm, snapshot=snapshot)
+        if args.json:
+            payload = to_payload(audit)
+            if args.resources:
+                from dataclasses import asdict
+
+                from pipeforge.core.costmodel.resources import estimate_resources
+
+                payload["resources"] = asdict(estimate_resources(audit.census, cm, args.family))
+            print(json_mod.dumps(payload, indent=2))
+        else:
+            print(render_text(audit), end="")
+            if args.resources:
+                from pipeforge.core.costmodel.resources import estimate_resources
+
+                est = estimate_resources(audit.census, cm, args.family)
+                print(f"== resources ==  {est.summary()}")
+        if last_latency and last_latency[-1] != audit.total_latency:
+            delta = audit.total_latency - last_latency[-1]
+            print(
+                f"Δ critical path: {last_latency[-1]} → {audit.total_latency} "
+                f"({'+' if delta > 0 else ''}{delta} cycles)"
+            )
+        last_latency.append(audit.total_latency)
+        return 0
+
+    if getattr(args, "watch", False):
+        from pipeforge.core.watch import watch_loop
+
+        print(f"watching {path} — Ctrl+C to stop", file=sys.stderr)
+        watch_loop([path], lambda: run_once())
+        return 0
+    return run_once()
 
 
 def _cmd_lint(args: argparse.Namespace) -> int:
+    if getattr(args, "watch", False):
+        from pipeforge.core.watch import watch_loop
+
+        print(f"watching {args.file} — Ctrl+C to stop", file=sys.stderr)
+        watch_loop([Path(args.file)], lambda: _lint_once(args))
+        return 0
+    return _lint_once(args)
+
+
+def _lint_once(args: argparse.Namespace) -> int:
     import json as json_mod
 
     from pipeforge.core.costmodel.model import CostModel
@@ -52,6 +97,27 @@ def _cmd_lint(args: argparse.Namespace) -> int:
         disabled=frozenset(args.disable or []),
         prefer_pyslang=not args.no_pyslang,
     )
+    if getattr(args, "verilator", False):
+        from pipeforge.core.svlint.verilator import VerilatorUnavailable, verilator_lint
+
+        try:
+            extra = verilator_lint(
+                path,
+                include_dirs=[Path(d) for d in (args.include or [])],
+                width=args.width,
+                scale=args.scale,
+            )
+            result.findings.extend(extra)
+        except VerilatorUnavailable as exc:
+            print(f"note: {exc}", file=sys.stderr)
+    if getattr(args, "sarif", None):
+        from pipeforge import __version__ as tool_version
+        from pipeforge.core.reports.sarif import sarif_document
+
+        Path(args.sarif).write_text(
+            sarif_document(result, str(path), tool_version), encoding="utf-8"
+        )
+        print(f"wrote {args.sarif}", file=sys.stderr)
     if args.json:
         payload = {
             "file": result.filename,
@@ -105,6 +171,29 @@ def _cmd_cosim(args: argparse.Namespace) -> int:
         ]
     elif args.probes:
         probes = [p.strip() for p in args.probes.split(",") if p.strip()]
+    vectors = None
+    if getattr(args, "replay", None):
+        from pipeforge.core.cosim.vectors import load_vectors
+
+        try:
+            vectors = load_vectors(Path(args.replay))
+        except (OSError, ValueError, json_mod.JSONDecodeError) as exc:
+            print(f"error: cannot replay {args.replay}: {exc}", file=sys.stderr)
+            return 2
+        print(f"replaying {len(vectors)} vector(s) from {args.replay}", file=sys.stderr)
+    elif getattr(args, "range", None):
+        from pipeforge.core.cosim.stimulus import generate_ranged_stimulus
+        from pipeforge.core.fxp.fx import FxFormat
+
+        declared = _parse_ranges(args.range)
+        inputs = [n.label for n in audit.dag.inputs()]
+        missing = [n for n in inputs if n not in declared]
+        if missing:
+            print(f"error: --range missing for input(s): {', '.join(missing)}", file=sys.stderr)
+            return 2
+        vectors = generate_ranged_stimulus(
+            inputs, FxFormat(cm.width, cm.scale), declared, count=args.vectors
+        )
     try:
         result = run_cosim(
             audit,
@@ -118,10 +207,16 @@ def _cmd_cosim(args: argparse.Namespace) -> int:
             backend=args.backend,
             probes=probes,
             bisect_on_failure=args.bisect,
+            vectors=vectors,
         )
     except CosimUnavailable as exc:
         print(str(exc), file=sys.stderr)
         return 3
+    if getattr(args, "junit_xml", None):
+        from pipeforge.core.reports.junit import junit_xml
+
+        Path(args.junit_xml).write_text(junit_xml(result, f"cosim.{args.top}"), encoding="utf-8")
+        print(f"wrote {args.junit_xml}", file=sys.stderr)
     if args.json:
         payload = result.to_payload()
         payload["harness_backend"] = result.harness_backend
@@ -159,6 +254,12 @@ def _cmd_cosim(args: argparse.Namespace) -> int:
 
             summary = triage(result.bisect_report, None, audit.dag)
             print(f"  triage: {summary.message}")
+        if result.failure_file:
+            print(f"  replay: pipeforge-cli cosim … --replay {result.failure_file}")
+        if result.gtkw_file:
+            vcd = next(iter(sorted(Path(result.work_dir).rglob("*.vcd"))), None)
+            if vcd is not None:
+                print(f"  waveform: gtkwave {vcd} {result.gtkw_file}")
     return 0 if result.passed else 1
 
 
@@ -176,16 +277,49 @@ def _cmd_codegen(args: argparse.Namespace) -> int:
     cm = CostModel(args.width, args.scale)
     audit = audit_source(src, path.name, cm)
     module = args.module or path.stem
+    plan = None
+    if getattr(args, "mixed", False):
+        from pipeforge.core.codegen.mixed import plan_widths
+        from pipeforge.core.ranges.interval import Interval
+        from pipeforge.core.ranges.propagate import RangeError, propagate
+
+        declared = _parse_ranges(args.range or [])
+        if not declared:
+            print(
+                "error: --mixed needs input ranges (--range name=lo:hi per input) — "
+                "the narrowing is only as safe as the ranges are true",
+                file=sys.stderr,
+            )
+            return 2
+        ranges = {k: Interval(lo, hi) for k, (lo, hi) in declared.items()}
+        try:
+            report = propagate(audit.dag, ranges, cm)
+        except RangeError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 1
+        plan = plan_widths(audit, report)
+        print(f"mixed precision: {plan.summary()}", file=sys.stderr)
     try:
-        sv = generate_sv(audit, module)
+        sv = generate_sv(audit, module, plan=plan)
     except CodegenError as exc:
         print(f"cannot generate: {exc}", file=sys.stderr)
         return 1
+    axis_sv = None
+    if getattr(args, "axis", False):
+        from pipeforge.core.codegen.axis import generate_axis_wrapper
+
+        axis_sv = generate_axis_wrapper(audit, module)
     if args.output:
         Path(args.output).write_text(sv, encoding="utf-8")
         print(f"wrote {args.output}")
+        if axis_sv is not None:
+            axis_path = Path(args.output).with_name(f"{Path(args.output).stem}_axis.sv")
+            axis_path.write_text(axis_sv, encoding="utf-8")
+            print(f"wrote {axis_path}")
     else:
         print(sv, end="")
+        if axis_sv is not None:
+            print(axis_sv, end="")
     return 0
 
 
@@ -319,8 +453,133 @@ def _cmd_dse(args: argparse.Namespace) -> int:
         for p in front:
             print(
                 f"  {p.width}/{p.scale}: latency {p.latency}, dividers {p.dividers}, "
-                f"max|e| {p.max_abs_error:.3g}, SQNR {p.sqnr_db:.1f} dB"
+                f"≈{p.dsp} DSP, max|e| {p.max_abs_error:.3g}, SQNR {p.sqnr_db:.1f} dB"
             )
+    return 0
+
+
+def _cmd_synth(args: argparse.Namespace) -> int:
+    """SY-1: quick yosys synthesis sanity-check of an .sv (or a .m via codegen)."""
+    import tempfile
+
+    from pipeforge.core.synth.estimate import SynthUnavailable, run_synth_estimate
+
+    path = Path(args.file)
+    include_dirs = [Path(d) for d in (args.include or [])]
+    sources = [Path(s) for s in (args.source or [])]
+    top = args.top
+    tmp_ctx: object | None = None
+    if path.suffix.lower() == ".m":  # generate first, then synth the result
+        from pipeforge.core.audit.engine import audit_source
+        from pipeforge.core.codegen.emitter import CodegenError, generate_sv
+        from pipeforge.core.costmodel.model import CostModel
+
+        src = _read(str(path))
+        if src is None:
+            return 2
+        audit = audit_source(src, path.name, CostModel(args.width, args.scale))
+        top = top or path.stem
+        try:
+            sv = generate_sv(audit, top)
+        except CodegenError as exc:
+            print(f"cannot generate: {exc}", file=sys.stderr)
+            return 1
+        tmp_ctx = tempfile.TemporaryDirectory(prefix="pipeforge_synth_")
+        gen = Path(tmp_ctx.name) / f"{top}.sv"  # type: ignore[attr-defined]
+        gen.write_text(sv, encoding="utf-8")
+        main_src = gen
+    else:
+        main_src = path
+        top = top or path.stem
+    try:
+        est = run_synth_estimate([main_src, *sources], top, include_dirs=include_dirs)
+    except SynthUnavailable as exc:
+        print(str(exc), file=sys.stderr)
+        return 3
+    finally:
+        if tmp_ctx is not None:
+            tmp_ctx.cleanup()  # type: ignore[attr-defined]
+    print(f"synth estimate {top} (yosys generic synth — a sanity check, not a vendor result)")
+    print(f"  {est.summary()}")
+    print(f"  wires: {est.wires}")
+    for cell, count in sorted(est.cells.items()):
+        print(f"    {cell:<20} x {count}")
+    return 0
+
+
+def _cmd_export_tb(args: argparse.Namespace) -> int:
+    """VX-2: export vectors + a standalone self-checking SV testbench."""
+    from pipeforge.core.audit.engine import audit_source
+    from pipeforge.core.cosim.stimulus import generate_stimulus
+    from pipeforge.core.cosim.vectors import export_testbench, load_vectors
+    from pipeforge.core.costmodel.model import CostModel
+    from pipeforge.core.fxp.fx import FxFormat
+
+    src = _read(args.file)
+    if src is None:
+        return 2
+    path = Path(args.file)
+    cm = CostModel(args.width, args.scale)
+    audit = audit_source(src, path.name, cm)
+    if args.from_failure:
+        try:
+            vectors = load_vectors(Path(args.from_failure))
+        except (OSError, ValueError) as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 2
+    else:
+        inputs = [n.label for n in audit.dag.inputs()]
+        vectors = generate_stimulus(inputs, FxFormat(cm.width, cm.scale), count=args.vectors)
+    out_dir = Path(args.output)
+    module = args.module or path.stem
+    written = export_testbench(audit, vectors, out_dir, module)
+    print(f"export-tb {path.name}: {len(vectors)} vectors → {out_dir}")
+    for p in written:
+        print(f"  {p.name}")
+    print(
+        "  run standalone, e.g.: verilator --binary --timing -Imatlib-main/rtl "
+        f"{module}.sv tb_check.sv --top-module tb_check && obj_dir/Vtb_check"
+    )
+    return 0
+
+
+def _cmd_report(args: argparse.Namespace) -> int:
+    """RH-1: one self-contained HTML design-review report."""
+    from pipeforge.core.audit.engine import audit_source
+    from pipeforge.core.costmodel.model import CostModel
+    from pipeforge.core.costmodel.resources import estimate_resources
+    from pipeforge.core.reports.html import build_report
+
+    src = _read(args.file)
+    if src is None:
+        return 2
+    path = Path(args.file)
+    cm = CostModel(args.width, args.scale)
+    audit = audit_source(src, path.name, cm)
+    resources = estimate_resources(audit.census, cm, args.family)
+    range_report = None
+    if args.range:
+        from pipeforge.core.ranges.interval import Interval
+        from pipeforge.core.ranges.propagate import RangeError, propagate
+
+        declared = _parse_ranges(args.range)
+        try:
+            range_report = propagate(
+                audit.dag, {k: Interval(lo, hi) for k, (lo, hi) in declared.items()}, cm
+            )
+        except RangeError as exc:
+            print(f"note: skipping range section — {exc}", file=sys.stderr)
+    lint = None
+    if args.sv:
+        from pipeforge.core.svlint.checks import lint_source
+
+        sv_text = _read(args.sv)
+        if sv_text is not None:
+            lint = lint_source(sv_text, Path(args.sv).name, cm, audit=audit)
+    html = build_report(audit, resources=resources, range_report=range_report, lint=lint)
+    out = Path(args.output)
+    out.write_text(html, encoding="utf-8")
+    print(f"wrote {out}")
     return 0
 
 
@@ -749,6 +1008,20 @@ def build_parser() -> argparse.ArgumentParser:
         help="MATLAB workspace snapshot (from 'matlab snapshot -o'): enables "
         "shape-aware costing and fi FORMAT findings",
     )
+    p_audit.add_argument(
+        "--resources",
+        action="store_true",
+        help="append a device resource estimate (DSP tiles + rough LUT/FF) (RE-1)",
+    )
+    p_audit.add_argument(
+        "--family",
+        default="xilinx7",
+        choices=("xilinx7", "ultrascale", "intel", "lattice"),
+        help="device family for --resources (default xilinx7)",
+    )
+    p_audit.add_argument(
+        "--watch", action="store_true", help="re-run on every save; prints the latency delta"
+    )
     p_audit.set_defaults(func=_cmd_audit)
 
     p_lint = sub.add_parser(
@@ -765,6 +1038,23 @@ def build_parser() -> argparse.ArgumentParser:
     p_lint.add_argument(
         "--no-pyslang", action="store_true", help="force the structural fallback backend"
     )
+    p_lint.add_argument(
+        "--verilator",
+        action="store_true",
+        help="also run `verilator --lint-only -Wall` and merge its findings (SL-7)",
+    )
+    p_lint.add_argument(
+        "--include",
+        action="append",
+        metavar="DIR",
+        help="include directory for the Verilator backend (repeatable)",
+    )
+    p_lint.add_argument(
+        "--sarif",
+        metavar="FILE",
+        help="also write findings as SARIF 2.1.0 (GitHub code-scanning annotations) (CI-2)",
+    )
+    p_lint.add_argument("--watch", action="store_true", help="re-lint on every save")
     p_lint.add_argument("--json", action="store_true", help="emit JSON instead of text")
     p_lint.set_defaults(func=_cmd_lint)
 
@@ -804,6 +1094,23 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="on failure, localize the first divergent stage + print triage (BI-4/DX-1)",
     )
+    p_cosim.add_argument(
+        "--replay",
+        metavar="FAILURE_JSON",
+        help="re-run the exact stimulus persisted by a previous failing run (VX-1)",
+    )
+    p_cosim.add_argument(
+        "--range",
+        action="append",
+        metavar="NAME=LO:HI",
+        help="constrain stimulus to declared input ranges (required to verify "
+        "--mixed modules) (MX-1)",
+    )
+    p_cosim.add_argument(
+        "--junit-xml",
+        metavar="FILE",
+        help="write the result as JUnit XML for CI dashboards (CI-1)",
+    )
     _add_fixedp_args(p_cosim)
     p_cosim.add_argument("--json", action="store_true", help="emit JSON instead of text")
     p_cosim.set_defaults(func=_cmd_cosim)
@@ -814,8 +1121,76 @@ def build_parser() -> argparse.ArgumentParser:
     p_gen.add_argument("file", help="MATLAB script (.m)")
     p_gen.add_argument("-m", "--module", help="generated module name (default: file stem)")
     p_gen.add_argument("-o", "--output", help="write to file instead of stdout")
+    p_gen.add_argument(
+        "--axis",
+        action="store_true",
+        help="also emit an AXI-Stream (tvalid/tready) wrapper with credit-based "
+        "backpressure (AX-1)",
+    )
+    p_gen.add_argument(
+        "--mixed",
+        action="store_true",
+        help="narrow range-proven operators to per-instance widths (needs --range "
+        "per input) (MX-1)",
+    )
+    p_gen.add_argument(
+        "--range",
+        action="append",
+        metavar="NAME=LO:HI",
+        help="declared input range for --mixed (repeatable)",
+    )
     _add_fixedp_args(p_gen)
     p_gen.set_defaults(func=_cmd_codegen)
+
+    p_synth = sub.add_parser(
+        "synth", help="quick yosys synthesis sanity-check: cells + logic depth (SY-1)"
+    )
+    p_synth.add_argument("file", help="SystemVerilog file (.sv) or MATLAB script (.m)")
+    p_synth.add_argument("--top", help="top module (default: file stem)")
+    p_synth.add_argument(
+        "--include", action="append", metavar="DIR", help="include directory (repeatable)"
+    )
+    p_synth.add_argument(
+        "--source", action="append", metavar="SV", help="additional SV source (repeatable)"
+    )
+    _add_fixedp_args(p_synth)
+    p_synth.set_defaults(func=_cmd_synth)
+
+    p_extb = sub.add_parser(
+        "export-tb",
+        help="export vectors + a standalone self-checking SV testbench (no PipeForge "
+        "needed to run it) (VX-2)",
+    )
+    p_extb.add_argument("file", help="MATLAB script (.m)")
+    p_extb.add_argument("-o", "--output", required=True, help="output directory")
+    p_extb.add_argument("-m", "--module", help="DUT module name (default: file stem)")
+    p_extb.add_argument("--vectors", type=int, default=256, help="stimulus vector count")
+    p_extb.add_argument(
+        "--from-failure",
+        metavar="FAILURE_JSON",
+        help="use the exact vectors persisted by a failing cosim run (VX-1)",
+    )
+    _add_fixedp_args(p_extb)
+    p_extb.set_defaults(func=_cmd_export_tb)
+
+    p_report = sub.add_parser("report", help="one self-contained HTML design-review report (RH-1)")
+    p_report.add_argument("file", help="MATLAB script (.m)")
+    p_report.add_argument("-o", "--output", required=True, help="output .html path")
+    p_report.add_argument(
+        "--range",
+        action="append",
+        metavar="NAME=LO:HI",
+        help="input range: adds the range-analysis section (repeatable)",
+    )
+    p_report.add_argument("--sv", help="SystemVerilog file: adds the lint section")
+    p_report.add_argument(
+        "--family",
+        default="xilinx7",
+        choices=("xilinx7", "ultrascale", "intel", "lattice"),
+        help="device family for the resource estimate",
+    )
+    _add_fixedp_args(p_report)
+    p_report.set_defaults(func=_cmd_report)
 
     p_ranges = sub.add_parser(
         "ranges", help="propagate value ranges; flag overflow and near-zero divisors"

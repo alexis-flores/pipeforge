@@ -33,12 +33,20 @@ def test_core_has_no_qt_imports() -> None:
     assert not offenders, f"core/ modules import PyQt6: {offenders}"
 
 
+#: TH-1 exemptions: *exported artifacts*, not application chrome. The HTML
+#: design-review report must render identically for readers who don't run
+#: PipeForge, so its palette is deliberately self-contained (RH-1).
+_HEX_EXEMPT = {("core", "reports", "html.py")}
+
+
 @pytest.mark.req("TH-1")
 def test_no_hex_colors_outside_theme_files() -> None:
     hex_re = re.compile(r"#[0-9a-fA-F]{6}\b")
     offenders = []
     for path in _py_files(SRC):
         rel = path.relative_to(SRC)
+        if rel.parts in _HEX_EXEMPT:
+            continue
         text = path.read_text(encoding="utf-8")
         if hex_re.search(text):
             offenders.append(str(rel))

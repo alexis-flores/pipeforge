@@ -56,6 +56,8 @@ class CosimResult:
     observations: Observations = field(default_factory=dict)  # node id -> streams
     bisect_report: BisectReport | None = None  # populated on failure (BI-4)
     harness_backend: str = "cocotb"  # 'cocotb' | 'verilator' (TL-1)
+    failure_file: str = ""  # replayable stimulus of a failing run (VX-1)
+    gtkw_file: str = ""  # GTKWave save file at the divergence (WV-1)
 
     def to_payload(self) -> dict[str, object]:
         return {
@@ -267,6 +269,7 @@ runner.test(hdl_toplevel="tb_wrapper", test_module="tb_cosim"{test_kwargs})
     if not result.passed and bisect_on_failure and result.observations:
         stimulus = [{k: v for k, v in vec.items()} for vec in vectors]
         result.bisect_report = bisect(audit.dag, stimulus, result.observations, fmt)
+    _write_failure_artifacts(audit, work_dir, vectors, result)
     return result
 
 
@@ -352,7 +355,34 @@ def _run_native(
             result.capture_backend = "trace"
             stimulus = [dict(vec.items()) for vec in vectors]
             result.bisect_report = bisect(audit.dag, stimulus, result.observations, fmt)
+    _write_failure_artifacts(audit, work_dir, vectors, result)
     return result
+
+
+def _write_failure_artifacts(
+    audit: Audit, work_dir: Path, vectors: list[Vector], result: CosimResult
+) -> None:
+    """On a comparison failure: persist replayable stimulus (VX-1) and, when a
+    VCD exists, a GTKWave save file at the divergence (WV-1). Never raises."""
+    if result.passed or not result.outputs:
+        return
+    try:
+        from pipeforge.core.cosim.vectors import save_failure
+
+        failing = {o.name: o.first_failure for o in result.outputs if not o.passed}
+        inputs = [n.label for n in audit.dag.inputs()]
+        path = save_failure(work_dir, vectors, inputs, failing, audit.cm.width, audit.cm.scale)
+        result.failure_file = str(path)
+    except OSError:
+        pass
+    try:
+        from pipeforge.core.cosim.wave import write_gtkw
+
+        gtkw = write_gtkw(work_dir, audit.dag, result.latency_expected, result.bisect_report)
+        if gtkw is not None:
+            result.gtkw_file = str(gtkw)
+    except OSError:
+        pass
 
 
 def _capture_from_trace(audit: Audit, work_dir: Path, total: int) -> Observations:

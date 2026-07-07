@@ -71,6 +71,45 @@ def generate_stimulus(
     return vectors[:count]
 
 
+def generate_ranged_stimulus(
+    inputs: list[str],
+    fmt: FxFormat,
+    ranges: dict[str, tuple[float, float]],
+    count: int = 256,
+    seed: int = 2024,
+) -> list[Vector]:
+    """Stimulus constrained to declared input ranges (MX-1 verification).
+
+    Range endpoints, midpoints, and near-zero (when in range) come first as
+    corners, then seeded uniform fill. Required to verify mixed-precision
+    modules: outside the declared ranges the narrowing proof does not hold,
+    so out-of-range vectors would report false mismatches.
+    """
+    rng = random.Random(seed)
+
+    def clamp_raw(x: float, name: str) -> int:
+        lo, hi = ranges[name]
+        return from_float(min(max(x, lo), hi), fmt)
+
+    vectors: list[Vector] = []
+    picks: list[float] = [0.0, 1.0, 0.5, 0.25, 0.75]  # positions within [lo, hi]
+    for pos in picks:
+        vec: Vector = {}
+        for name in inputs:
+            lo, hi = ranges[name]
+            vec[name] = from_float(lo + (hi - lo) * pos, fmt)
+        vectors.append(vec)
+    # near-zero corner where the range allows it
+    vectors.append({name: clamp_raw(0.0, name) for name in inputs})
+    while len(vectors) < count:
+        vec = {}
+        for name in inputs:
+            lo, hi = ranges[name]
+            vec[name] = from_float(rng.uniform(lo, hi), fmt)
+        vectors.append(vec)
+    return vectors[:count]
+
+
 #: supported valid-driving cadences (CS-6).
 CADENCES = ("continuous", "gapped", "single", "restart")
 
