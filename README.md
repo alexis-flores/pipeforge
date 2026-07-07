@@ -296,6 +296,12 @@ exits cleanly (code 3) — it never half-runs.
 # 1. What does this MATLAB cost as a pipeline, and how do I make it cheaper?
 pipeforge-cli audit seed/example.m
 
+# 1b. Don't just read the findings — apply them (honest before/after report)
+pipeforge-cli optimize seed/example.m -o example_opt.m
+
+# 1c. Have real data in a .mat? Shapes + values sharpen everything (no MATLAB)
+pipeforge-cli audit model.m --snapshot params.mat
+
 # 2. Generate the nkMatlib SystemVerilog for it
 pipeforge-cli codegen tests/fixtures/normalize3d.m -o normalize3d.sv
 
@@ -1089,13 +1095,15 @@ updates the workspace WIDTH/SCALE and re-derives every view live. **Use it to**
 choose a fixed-point format from data.
 
 ### <a id="gui--workspace"></a>9. Workspace
-The MATLAB/`.mat` browser. Open a `.mat` (Ctrl+O — it becomes the session setup),
-hit **Refresh from MATLAB**, then sort/filter the variable table: name (struct
-fields dotted), class, size, `fi` format, range. With a script also open, clicking
-a row selects the matching DAG node. **Use it to** inspect real workspace data and
-ground the analysis in true types/shapes. *(This is the live [`matlab`](#cli-matlab)
-bridge surfaced graphically; the status-bar MATLAB chip shows snapshot freshness —
-`⟳` refreshing, `✓ time · N vars` current, `⚠ stale` when a watched file changed.)*
+The MATLAB/`.mat` browser. Open a `.mat` (Ctrl+O or drag-and-drop) and it loads
+**immediately, no MATLAB needed** (WS-7): the variable table fills — name
+(struct fields dotted), class, size, range — the status chip shows `.mat ✓`,
+and every audit becomes shape-aware on the spot. Sort/filter the table; with a
+script also open, clicking a row selects the matching DAG node. **Refresh from
+MATLAB** (Ctrl+Shift+M) swaps in a *live* snapshot when you want `fi` formats
+too. **Use it to** ground the analysis in real data and true shapes. *(The
+status-bar chip shows snapshot state — `.mat ✓` static, `⟳` refreshing,
+`MATLAB ✓ time · N vars` live, `⚠ stale` when a watched file changed.)*
 
 ### <a id="gui-correspondence"></a>10. Mapping
 The [`map`](#cli-map) workflow graphically: review proposed variable matches,
@@ -1139,10 +1147,23 @@ validation with a clear message and fall back to the default.
 ## End-to-end workflows
 
 **"I have a MATLAB algorithm and want production RTL."**
-`audit` (see the cost) → `ranges --recommend` (pick a safe format) →
-`dse` (confirm the format trade) → `codegen` (skeleton) →
-`cosim --backend verilator` (prove it) → `cosim --bisect` (if it fails, find the
-stage).
+`audit` (see the cost) → `optimize` (apply the findings, read the honest
+latency/divider/accuracy trade) → `ranges --recommend` (pick a safe format) →
+`dse` (confirm the format trade) → `codegen` (skeleton; `--axis` for an
+AXI-Stream wrapper) → `cosim` (prove it bit-exact) → `cosim --bisect` (if it
+fails: the divergent stage, a replay file, and a GTKWave save at the failing
+cycle).
+
+**"I have real data in a `.mat` and no MATLAB on this machine."**
+`mat2json params.mat` (or just pass the `.mat` anywhere `--snapshot` goes) →
+`audit model.m --snapshot params.mat` (shape-aware costs) →
+`ranges model.m --snapshot params.mat --recommend 0.01` (format from the data) →
+`optimize model.m --snapshot params.mat` (accuracy judged on your values).
+
+**"Gate every pull request."**
+Work in the GUI once (ranges + cosim config persist to
+`model.pipeforge.toml`) → `pipeforge-cli ci model.pipeforge.toml --junit-xml
+cosim.xml --sarif lint.sarif` in the workflow → see [docs/ci.md](docs/ci.md).
 
 **"A colleague hand-wrote the RTL; does it match the math?"**
 `lint dut.sv` (conventions) → `cosim --sv dut.sv --bisect` (bit-exact + localize) →
@@ -1297,14 +1318,29 @@ default and the validation error names the offending token.
   column-major identity on values (the supported, target-codebase case); a
   non-identity 2-D repack in the *harness* packing is not exercised.
 - Static analysis without a snapshot assumes every `*` is elementwise and every
-  variable is scalar-shaped — attach a snapshot for shape truth.
+  variable is scalar-shaped — attach a snapshot (live MATLAB *or* a static
+  `.mat` via [`mat2json`](#cli-mat2json)/`--snapshot file.mat`) for shape truth.
 - **CS-8 trace bisection** localizes hand-written RTL only when its signal stage
   suffixes equal the cost-model ready times (always true for generated RTL); for
   non-convention RTL it returns nothing gracefully (no crash) and you fall back to
   probe ports.
-- Codegen rejects opaque indexing/concatenation rather than guessing.
-- One fixed-point format per workspace: mixed `fi` formats are *detected and
-  flagged* (FORMAT finding) but not auto-converted mid-pipeline.
+- Codegen emits indexing/field/range wiring as value-preserving pass-throughs
+  (the golden model's semantics); **multi-element concatenation** has no
+  scalar-lane RTL representation and is rejected with a clear error.
+- The *workspace* format is one WIDTH/SCALE; [`codegen --mixed`](#cli-codegen)
+  narrows range-proven add/sub/mul-class operators per instance, but dividers
+  and sqrts stay at the global format (their latency depends on WIDTH), and
+  mixed `fi` *declarations* are detected and flagged (FORMAT finding), not
+  auto-converted.
+- `fi` objects inside `.mat` files are opaque MCOS blobs: the static snapshot
+  carries classes/shapes/values/ranges but not fi types — FORMAT findings need
+  one live-bridge snapshot.
+- `delay(x)` state assumes gapless streaming (the nkMatlib 1-result/clock
+  contract): co-simulation of stateful designs requires the continuous cadence,
+  and IIR-style feedback *through* `delay` is not yet modeled (feedforward taps
+  are).
+- Local functions v1: single-output call sites, self-contained bodies, no
+  recursion — violations are skipped-and-reported per statement, never fatal.
 - The MATLAB bridge spawns `matlab -batch` per snapshot (seconds) unless the warm
   session is enabled; a persistent engine is the kept-warm backend behind the same
   interface.
