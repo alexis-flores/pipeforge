@@ -143,17 +143,27 @@ class Workspace(QObject):
                 self.mat_path = path
                 try:  # also load the struct tree for inspector resolution (WS-6)
                     from pipeforge.core.workspace.mat_loader import load_mat
+                    from pipeforge.core.workspace.snapshot_bridge import snapshot_from_tree
 
                     self.software_tree = load_mat(path)
+                    # WS-7: a static snapshot, no MATLAB needed — classes,
+                    # shapes, values, ranges feed the audit immediately
+                    self.snapshot = snapshot_from_tree(self.software_tree)  # type: ignore[arg-type]
+                    self._set_stale(False)
+                    self.snapshotChanged.emit(self.snapshot)
                 except Exception as exc:  # never fatal (NF-4)
                     self.software_tree = None
                     self.logMessage.emit(f"workspace: could not parse {path.name}: {exc}")
                 self._rearm_watcher()
                 self.fileChanged.emit(str(path))
-                self.logMessage.emit(
-                    f"workspace: {path.name} set as MATLAB setup — refresh "
-                    "(Ctrl+Shift+M) to load and browse it"
-                )
+                if self.snapshot is not None:
+                    self.logMessage.emit(
+                        f"workspace: {path.name} loaded statically — "
+                        f"{len(self.snapshot.variables)} variable(s), shape-aware audit on. "
+                        "Refresh (Ctrl+Shift+M) swaps in a live MATLAB snapshot "
+                        "(adds fi formats)."
+                    )
+                self._reaudit()  # a shape-aware re-audit when a .m is open
                 return
             text = path.read_text(encoding="utf-8", errors="replace")
         except OSError as exc:

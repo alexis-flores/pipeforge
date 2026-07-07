@@ -115,6 +115,25 @@ def test_open_never_creates_sidecar(window: MainWindow, tmp_path: Path) -> None:
     assert not (tmp_path / "plain.pipeforge.toml").exists()
 
 
+def test_mat_open_builds_static_snapshot_no_matlab(window: MainWindow, tmp_path: Path) -> None:
+    import numpy as np
+    import scipy.io as sio
+
+    mat = tmp_path / "params.mat"
+    sio.savemat(str(mat), {"A": np.eye(3) * 0.5, "v": np.array([[1.0], [2.0], [3.0]])})
+    window.open_path(mat)
+    snap = window.workspace.snapshot
+    assert snap is not None and snap.get("A") is not None  # no MATLAB involved
+    assert window.matlab_chip.text().startswith(".mat ✓")
+    # a .m opened afterwards audits shape-aware immediately
+    m = tmp_path / "model.m"
+    m.write_text("y = A * v;\n", encoding="utf-8")
+    window.open_path(m)
+    audit = window.workspace.audit
+    assert audit is not None
+    assert audit.census.get("matmul") == 1
+
+
 def test_optimize_button_enabled_with_findings(window: MainWindow) -> None:
     from pipeforge.gui.views.audit_view import AuditView
 

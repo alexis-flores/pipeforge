@@ -91,7 +91,7 @@ class AuditView(QWidget):
 
         if not self._ws.source or self._ws.m_path is None:
             return
-        result = optimize_source(self._ws.source, self._ws.cost_model)
+        result = optimize_source(self._ws.source, self._ws.cost_model, snapshot=self._ws.snapshot)
         if not result.changed:
             self._summary.setText(self._summary.text() + f"  Optimize: {result.note}.")
             return

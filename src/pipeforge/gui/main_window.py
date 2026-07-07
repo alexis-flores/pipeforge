@@ -286,8 +286,17 @@ class MainWindow(QMainWindow):
         else:
             self.matlab_chip.set_state("")
             when = snapshot.timestamp.split(" ")[-1][:5] if snapshot.timestamp else ""
-            self.matlab_chip.setText(f"MATLAB ✓ {when} · {len(snapshot.variables)} vars")
-            self.matlab_chip.setToolTip("Snapshot is current — click to refresh anyway")
+            from pipeforge.core.workspace.snapshot_bridge import STATIC_ORIGIN
+
+            if snapshot.matlab_version == STATIC_ORIGIN:
+                self.matlab_chip.setText(f".mat ✓ {len(snapshot.variables)} vars")
+                self.matlab_chip.setToolTip(
+                    "Static .mat snapshot (no MATLAB) — click to swap in a live "
+                    "MATLAB snapshot (adds fi formats)"
+                )
+            else:
+                self.matlab_chip.setText(f"MATLAB ✓ {when} · {len(snapshot.variables)} vars")
+                self.matlab_chip.setToolTip("Snapshot is current — click to refresh anyway")
 
     def _build_inspector(self) -> None:
         self.inspector = QDockWidget("Inspector")

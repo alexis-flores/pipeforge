@@ -30,7 +30,7 @@ with every matching delay computed. When RTL and model disagree, it tells you
      [lint](#cli-lint) · [ranges](#cli-ranges) · [dse](#cli-dse) ·
      [cosim](#cli-cosim) · [ci](#cli-ci) · [synth](#cli-synth) ·
      [export-tb](#cli-export-tb) · [report](#cli-report) · [oracle](#cli-oracle) ·
-     [reconcile](#cli-reconcile) · [map](#cli-map) ·
+     [reconcile](#cli-reconcile) · [map](#cli-map) · [mat2json](#cli-mat2json) ·
      [traceability](#cli-traceability) · [matlab](#cli-matlab) · [demos](#cli-demos)
 6. [The GUI, view by view](#the-gui-view-by-view)
 7. [End-to-end workflows](#end-to-end-workflows)
@@ -77,6 +77,7 @@ using one shared cost model so every answer is comparable to every other.
 | Grade the model against captured ground-truth I/O | [`oracle`](#cli-oracle) | `.m` + a `.mat` of vectors |
 | Check a `.mat` workspace against its SV `software` mirror | [`reconcile`](#cli-reconcile) | a `.mat` + a `.sv` |
 | Map MATLAB variables ↔ RTL signals | [`map`](#cli-map) | `.m` + `.sv` |
+| Make the audit shape/type-aware from a `.mat` — **no MATLAB** | [`mat2json`](#cli-mat2json) / `--snapshot file.mat` | a `.mat` file |
 | Validate the model against *real* MATLAB values | [`matlab validate`](#cli-matlab) | MATLAB installed |
 
 Two entry points expose all of it:
@@ -845,6 +846,33 @@ sit within an LSB or two at sensible SCALEs.
 **Expect:** the first snapshot after a cold MATLAB start can take seconds (a
 warm/kept-alive session, configured in the GUI, drops this to ~0.1 s). Missing or
 unreachable MATLAB → exit 3 with the list of candidates it tried.
+
+---
+
+### <a id="cli-mat2json"></a>`mat2json` — a `.mat` becomes a snapshot, no MATLAB
+
+**Helps you:** feed real structs (values, classes, sizes) into the analyses on
+a machine with no MATLAB at all.
+
+```sh
+pipeforge-cli mat2json params.mat                      # -> params.snapshot.json
+pipeforge-cli audit  model.m --snapshot params.mat     # or use the .mat directly
+pipeforge-cli ranges model.m --snapshot params.mat
+pipeforge-cli optimize model.m --snapshot params.mat
+```
+
+The pure-Python loader (scipy/h5py; v5, v7, and v7.3 `.mat`) walks nested
+structs into dotted names (`cfg.adc.vref`) and emits the same snapshot JSON
+the live bridge produces — so the audit becomes **shape-aware** (`A * v` with a
+3×3 `A` maps to `matmul`, matrix/scalar to `matunscale` — very different
+latencies), ranges get real min/max, and `optimize` compares accuracy over
+your actual data instead of synthetic stimulus. In the GUI, just open the
+`.mat`: the Workspace view fills, the status chip shows `.mat ✓`, and every
+audit is immediately shape-aware.
+
+The one thing only the live bridge can add: `fi` object *types* (they are
+opaque MCOS blobs inside `.mat` files), which power the FORMAT findings —
+Ctrl+Shift+M swaps the static snapshot for a live one when you need that.
 
 ---
 

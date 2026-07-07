@@ -578,6 +578,29 @@ def _cmd_export_tb(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_mat2json(args: argparse.Namespace) -> int:
+    """WS-7: convert a .mat into the snapshot JSON every analysis consumes."""
+    from pipeforge.core.workspace.snapshot_bridge import snapshot_from_mat
+
+    try:
+        snap = snapshot_from_mat(Path(args.mat))
+    except (OSError, ValueError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    out = Path(args.output) if args.output else Path(args.mat).with_suffix(".snapshot.json")
+    out.write_text(snap.to_json(), encoding="utf-8")
+    print(f"mat2json {Path(args.mat).name}: {len(snap.variables)} variable(s) -> {out}")
+    for name, v in sorted(snap.variables.items()):
+        size = "x".join(str(d) for d in v.size)
+        rng = f" range [{v.vmin:.6g}, {v.vmax:.6g}]" if v.vmin is not None else ""
+        print(f"  {name:<24} {v.class_name:<10} {size:<8}{rng}")
+    print(
+        "  note: fi fixed-point types need the live bridge (matlab snapshot); "
+        "classes/shapes/values/ranges are all here"
+    )
+    return 0
+
+
 def _cmd_optimize(args: argparse.Namespace) -> int:
     """OP-1: apply the auditor's rewrites to the source and report honestly."""
     from pipeforge.core.costmodel.model import CostModel
@@ -587,7 +610,8 @@ def _cmd_optimize(args: argparse.Namespace) -> int:
     if src is None:
         return 2
     cm = CostModel(args.width, args.scale)
-    result = optimize_source(src, cm, vectors=args.vectors)
+    snapshot = _load_snapshot_arg(getattr(args, "snapshot", None))
+    result = optimize_source(src, cm, vectors=args.vectors, snapshot=snapshot)
     if not result.changed:
         print(f"optimize {Path(args.file).name}: {result.note or 'nothing to do'}")
         return 0
@@ -875,8 +899,13 @@ def _cmd_matlab(args: argparse.Namespace) -> int:
 
 
 def _load_snapshot_arg(path_str: str | None):  # -> WorkspaceSnapshot | None
+    """A snapshot argument: bridge JSON, or a .mat converted statically (WS-7)."""
     if not path_str:
         return None
+    if Path(path_str).suffix.lower() == ".mat":
+        from pipeforge.core.workspace.snapshot_bridge import snapshot_from_mat
+
+        return snapshot_from_mat(Path(path_str))
     from pipeforge.core.frontend.varinfo import WorkspaceSnapshot
 
     return WorkspaceSnapshot.from_json(Path(path_str).read_text(encoding="utf-8"))
@@ -1176,8 +1205,9 @@ def build_parser() -> argparse.ArgumentParser:
     p_audit.add_argument(
         "--snapshot",
         metavar="JSON",
-        help="MATLAB workspace snapshot (from 'matlab snapshot -o'): enables "
-        "shape-aware costing and fi FORMAT findings",
+        help="workspace snapshot: bridge JSON (from 'matlab snapshot -o') or a "
+        ".mat converted statically, no MATLAB needed (WS-7) — enables "
+        "shape-aware costing (and, via the bridge, fi FORMAT findings)",
     )
     p_audit.add_argument(
         "--resources",
@@ -1357,8 +1387,22 @@ def build_parser() -> argparse.ArgumentParser:
     p_opt.add_argument(
         "--vectors", type=int, default=64, help="vectors for the accuracy comparison"
     )
+    p_opt.add_argument(
+        "--snapshot",
+        metavar="JSON|MAT",
+        help="workspace snapshot (bridge JSON or a .mat, converted statically): "
+        "shape-aware cycle deltas + real-data accuracy comparison (WS-7)",
+    )
     _add_fixedp_args(p_opt)
     p_opt.set_defaults(func=_cmd_optimize)
+
+    p_m2j = sub.add_parser(
+        "mat2json",
+        help="convert a .mat into snapshot JSON — no MATLAB needed (WS-7)",
+    )
+    p_m2j.add_argument("mat", help="MATLAB workspace file (.mat, v5/v7/v7.3)")
+    p_m2j.add_argument("-o", "--output", help="output path (default: <stem>.snapshot.json)")
+    p_m2j.set_defaults(func=_cmd_mat2json)
 
     p_ci = sub.add_parser(
         "ci", help="run the whole configured gate from a .pipeforge.toml sidecar (PJ-2)"

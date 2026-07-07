@@ -5,6 +5,16 @@
 The "engineers' workflow" release: PipeForge now closes the loop from MATLAB
 to waveform viewer, CI gate, and integration-ready RTL — and got a star. ✵
 
+### Data-driven analysis, no MATLAB
+- **WS-7 static `.mat` snapshots**: `pipeforge-cli mat2json params.mat`
+  converts a `.mat` (v5/v7/v7.3, nested structs → dotted names) into the same
+  snapshot JSON the live bridge produces — pure Python, no MATLAB. Every
+  `--snapshot` flag also accepts a `.mat` directly, and the GUI builds the
+  snapshot the moment a `.mat` opens (status chip: `.mat ✓`): shape-aware
+  audits (`A * v` → `matmul`), real-data ranges, and `optimize --snapshot`
+  comparing accuracy over your actual values. `fi` types still need the live
+  bridge (opaque MCOS blobs in `.mat` files).
+
 ### Language & frontend
 - **Local functions** (FN-1): scripts may define `function out = name(args) … end`
   after the body; calls inline hygienically at every call site (nested calls

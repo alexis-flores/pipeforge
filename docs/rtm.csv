@@ -318,3 +318,8 @@ WS-5,tests/integration/test_vector_oracle.py::test_io_vectors_drive_cosim_stimul
 WS-5,tests/unit/test_cli.py::test_cli_oracle_float_within_precision,passed
 WS-6,tests/gui/test_inspector.py::test_software_field_value_shape_format_shown,passed
 WS-6,tests/unit/test_ranges_constants.py::test_struct_constants_become_point_ranges,passed
+WS-7,tests/unit/test_snapshot_bridge.py::test_cli_mat2json_and_snapshot_args,passed
+WS-7,tests/unit/test_snapshot_bridge.py::test_optimize_uses_snapshot_shapes_and_data,passed
+WS-7,tests/unit/test_snapshot_bridge.py::test_snapshot_from_mat_carries_shapes_types_ranges,passed
+WS-7,tests/unit/test_snapshot_bridge.py::test_snapshot_json_roundtrip,passed
+WS-7,tests/unit/test_snapshot_bridge.py::test_static_snapshot_makes_the_audit_shape_aware,passed

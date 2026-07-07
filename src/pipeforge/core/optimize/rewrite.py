@@ -342,21 +342,43 @@ def _render(src: str, stmts: list[_Stmt]) -> str:
 # -- accuracy comparison ----------------------------------------------------------------
 
 
-def _compare(src_before: str, src_after: str, cm: CostModel, vectors: int) -> list[OutputAccuracy]:
+def _compare(
+    src_before: str,
+    src_after: str,
+    cm: CostModel,
+    vectors: int,
+    snapshot: object | None = None,
+) -> list[OutputAccuracy]:
     import random
 
     from pipeforge.core.audit.engine import audit_source
+    from pipeforge.core.frontend.varinfo import WorkspaceSnapshot
     from pipeforge.core.fxp.evaluator import error_stats, evaluate_fixed, evaluate_float
     from pipeforge.core.fxp.fx import FxFormat, to_float
 
-    before = audit_source(src_before, "before.m", cm)
-    after = audit_source(src_after, "after.m", cm)
+    before = audit_source(src_before, "before.m", cm, snapshot=snapshot)
+    after = audit_source(src_after, "after.m", cm, snapshot=snapshot)
     fmt = FxFormat(cm.width, cm.scale)
     outs_before = {n.signal: n.nid for n in before.dag.outputs() if n.signal}
     outs_after = {n.signal: n.nid for n in after.dag.outputs() if n.signal}
     common = sorted(set(outs_before) & set(outs_after))
     inputs = sorted({n.label for n in before.dag.inputs()})
     rng = random.Random(7)
+    # real-data stimulus when the snapshot carries it (WS-7): the accuracy
+    # comparison then reflects the values this design actually processes
+    streams: dict[str, tuple[float, ...]] = {}
+    if isinstance(snapshot, WorkspaceSnapshot):
+        for name in inputs:
+            info = snapshot.get(name)
+            if info is not None and info.values:
+                streams[name] = info.values
+
+    def input_value(name: str, i: int) -> float:
+        vals = streams.get(name)
+        if vals:
+            return vals[i % len(vals)]
+        return rng.uniform(-1.0, 1.0)
+
     state_bx: dict[str, list[int]] = {}
     state_ax: dict[str, list[int]] = {}
     state_bf: dict[str, list[float]] = {}
@@ -364,8 +386,8 @@ def _compare(src_before: str, src_after: str, cm: CostModel, vectors: int) -> li
     ref: dict[str, list[float]] = {k: [] for k in common}
     meas_b: dict[str, list[float]] = {k: [] for k in common}
     meas_a: dict[str, list[float]] = {k: [] for k in common}
-    for _ in range(vectors):
-        vec = {name: rng.uniform(-1.0, 1.0) for name in inputs}
+    for i in range(vectors):
+        vec = {name: input_value(name, i) for name in inputs}
         vb = evaluate_fixed(before.dag, dict(vec), fmt, state=state_bx)
         va = evaluate_fixed(after.dag, dict(vec), fmt, state=state_ax)
         fb = evaluate_float(before.dag, dict(vec), fmt, state=state_bf)
@@ -389,7 +411,9 @@ def _compare(src_before: str, src_after: str, cm: CostModel, vectors: int) -> li
     return out
 
 
-def optimize_source(src: str, cm: CostModel, vectors: int = 64) -> OptimizeResult:
+def optimize_source(
+    src: str, cm: CostModel, vectors: int = 64, snapshot: object | None = None
+) -> OptimizeResult:
     """Apply RECIP/CDIV/SERDIV/POW/CSE rewrites to MATLAB source (OP-1).
 
     Operates on the script's own statements (local function bodies are left
@@ -407,14 +431,14 @@ def optimize_source(src: str, cm: CostModel, vectors: int = 64) -> OptimizeResul
     opt.pow_()
     opt.cse()
     result = OptimizeResult(source=src, rewrites=opt.rewrites)
-    before = audit_source(src, "before.m", cm)
+    before = audit_source(src, "before.m", cm, snapshot=snapshot)
     result.latency_before = result.latency_after = before.total_latency
     result.dividers_before = result.dividers_after = before.divider_count
     if not opt.rewrites:
         result.note = "no applicable rewrites"
         return result
     new_src = _render(src, opt.stmts)
-    after = audit_source(new_src, "after.m", cm)
+    after = audit_source(new_src, "after.m", cm, snapshot=snapshot)
     if len(after.skipped) > len(before.skipped):
         result.rewrites = []
         result.note = "rewritten source failed to re-parse cleanly; keeping the original"
@@ -422,5 +446,5 @@ def optimize_source(src: str, cm: CostModel, vectors: int = 64) -> OptimizeResul
     result.source = new_src
     result.latency_after = after.total_latency
     result.dividers_after = after.divider_count
-    result.accuracy = _compare(src, new_src, cm, vectors)
+    result.accuracy = _compare(src, new_src, cm, vectors, snapshot=snapshot)
     return result
