@@ -22,12 +22,15 @@ class Finding:
 
 def _recip(builder: DagBuilder, cm: CostModel) -> list[Finding]:
     findings: list[Finding] = []
-    by_divisor: dict[str, list[Node]] = {}
+    # group by the divisor's DAG node, not its text: after loop unrolling the
+    # same spelling ('x') names a different definition per iteration (LP-1)
+    by_divisor: dict[tuple[str, str], list[Node]] = {}
     for node, _dividend, divisor in builder.div_nodes:
         if isinstance(divisor, Num):
             continue
-        by_divisor.setdefault(canon(divisor), []).append(node)
-    for div_label, group in sorted(by_divisor.items(), key=lambda kv: kv[1][0].line):
+        divisor_nid = node.args[1] if len(node.args) > 1 else node.args[0]
+        by_divisor.setdefault((canon(divisor), divisor_nid), []).append(node)
+    for (div_label, _nid), group in sorted(by_divisor.items(), key=lambda kv: kv[1][0].line):
         if len(group) < 2:
             continue
         k = len(group)
@@ -133,12 +136,14 @@ def _pow(builder: DagBuilder, cm: CostModel) -> list[Finding]:
 def _cse(builder: DagBuilder, cm: CostModel) -> list[Finding]:
     findings: list[Finding] = []
     dag = builder.dag
-    by_label: dict[str, list[Node]] = {}
+    # key on (text, operand identity): identical spellings whose operands are
+    # different definitions (unrolled iterations, reassignment) are NOT common
+    by_label: dict[tuple[str, tuple[str, ...]], list[Node]] = {}
     for nid in dag.order:
         n = dag.nodes[nid]
         if n.args and n.module not in ("", "input", "const"):
-            by_label.setdefault(n.label, []).append(n)
-    for label, group in sorted(by_label.items(), key=lambda kv: kv[1][0].line):
+            by_label.setdefault((n.label, tuple(n.args)), []).append(n)
+    for (label, _args), group in sorted(by_label.items(), key=lambda kv: kv[1][0].line):
         if len(group) < 2:
             continue
         k = len(group)
@@ -215,6 +220,23 @@ def _format(builder: DagBuilder, cm: CostModel) -> list[Finding]:
     return findings
 
 
+def _unroll(builder: DagBuilder, cm: CostModel) -> list[Finding]:
+    """UNROLL (LP-1): a constant-bound loop became pipeline structure —
+    informational, so the report says where the extra instances came from."""
+    return [
+        Finding(
+            "UNROLL",
+            note.line,
+            0,
+            f"loop over '{note.var}' unrolled into {note.count} pipelined iteration(s)",
+            "constant trip count: the recurrence is now a feedforward chain in "
+            "space; throughput stays 1 sample/clock (no initiation-interval "
+            "penalty). Run `optimize` to balance accumulation chains into trees.",
+        )
+        for note in getattr(builder, "unrolls", [])
+    ]
+
+
 def _feedback(builder: DagBuilder, cm: CostModel) -> list[Finding]:
     return [
         Finding(
@@ -232,7 +254,7 @@ def _feedback(builder: DagBuilder, cm: CostModel) -> list[Finding]:
 def find_findings(builder: DagBuilder, cm: CostModel) -> list[Finding]:
     """Run every finding rule over a built DAG; result is line-sorted."""
     findings: list[Finding] = []
-    for rule in (_recip, _cdiv, _serdiv, _pow, _cse, _fuse, _feedback, _format):
+    for rule in (_recip, _cdiv, _serdiv, _pow, _cse, _fuse, _feedback, _unroll, _format):
         findings.extend(rule(builder, cm))
     findings.sort(key=lambda f: (f.line, f.tag))
     return findings

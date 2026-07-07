@@ -66,6 +66,7 @@ def export_testbench(
     The testbench needs only the DUT sources and nkMatlib — not PipeForge.
     """
     from pipeforge.core.cosim.harness import golden_outputs
+    from pipeforge.core.frontend.dag import port_name
     from pipeforge.core.fxp.fx import FxFormat
 
     fmt = FxFormat(audit.cm.width, audit.cm.scale)
@@ -76,7 +77,7 @@ def export_testbench(
     written: list[Path] = []
     digits = (audit.cm.width + 3) // 4
     for name in inputs:
-        p = out_dir / f"stim_{name}.hex"
+        p = out_dir / f"stim_{port_name(name)}.hex"
         p.write_text("\n".join(f"{vec[name]:0{digits}x}" for vec in vectors), encoding="utf-8")
         written.append(p)
     for name in outputs:
@@ -93,8 +94,10 @@ def render_check_tb(audit: Audit, dut_module: str, count: int) -> str:
     """The standalone self-checking testbench source (VX-2)."""
     w = audit.cm.width
     scale = audit.cm.scale
+    from pipeforge.core.frontend.dag import port_name
+
     latency = audit.total_latency
-    inputs = [n.label for n in audit.dag.inputs()]
+    inputs = [port_name(n.label) for n in audit.dag.inputs()]
     outputs = [n.signal for n in audit.dag.outputs() if n.signal]
     in_decls = "\n".join(f"  logic [{w - 1}:0] {n}_0;" for n in inputs)
     out_decls = "\n".join(f"  logic [{w - 1}:0] {n}_N;" for n in outputs)
@@ -139,6 +142,7 @@ module tb_check;
     errors = 0;
     repeat (4) @(posedge clk);
     reset = 0;
+    @(posedge clk); // settle: piperam write-enable asserts one edge after reset
     fed = 0; collected = 0; cyc = 0;
     while (collected < {count} && cyc < {count} + {latency} + 64) begin
       if (fed < {count}) begin

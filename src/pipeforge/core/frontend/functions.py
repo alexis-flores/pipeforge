@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 
 from pipeforge.core.costmodel.model import KNOWN_FUNCS
 from pipeforge.core.frontend.ast import (
@@ -34,6 +35,9 @@ from pipeforge.core.frontend.ast import (
     expr_vars,
 )
 from pipeforge.core.frontend.parser import Assign, Skipped, parse_program
+
+if TYPE_CHECKING:
+    from pipeforge.core.frontend.loops import UnrollNote
 
 MAX_INLINE_DEPTH = 16
 
@@ -67,7 +71,9 @@ def _first_word(line: str) -> str:
     return m.group(0) if m else ""
 
 
-def extract_functions(src: str) -> tuple[str, dict[str, FunctionDef], list[Skipped]]:
+def extract_functions(
+    src: str, unroll: bool = True, unroll_log: list[UnrollNote] | None = None
+) -> tuple[str, dict[str, FunctionDef], list[Skipped]]:
     """Split a script into (script part, local functions, problems).
 
     Function regions are blanked (not removed) so the script part keeps its
@@ -126,7 +132,9 @@ def extract_functions(src: str) -> tuple[str, dict[str, FunctionDef], list[Skipp
         start = fn.line  # body begins on the line after the header
         # re-pad so body line numbers report near the definition (best effort)
         body_src = "\n" * start + _body_text_of(src, fn)
-        fn.body, fn.body_problems = parse_program(body_src, known_funcs=known)
+        fn.body, fn.body_problems = parse_program(
+            body_src, known_funcs=known, unroll=unroll, unroll_log=unroll_log
+        )
     return "\n".join(out_lines), funcs, problems
 
 
@@ -266,14 +274,18 @@ class _Inliner:
         return Var(mapping[fn.outs[0]], call.span)
 
 
-def parse_with_functions(src: str) -> tuple[list[Assign], list[Skipped]]:
+def parse_with_functions(
+    src: str, unroll: bool = True, unroll_log: list[UnrollNote] | None = None
+) -> tuple[list[Assign], list[Skipped]]:
     """parse_program plus local-function extraction and call-site inlining (FN-1)."""
-    script_src, funcs, problems = extract_functions(src)
+    script_src, funcs, problems = extract_functions(src, unroll=unroll, unroll_log=unroll_log)
     if not funcs:
-        assigns, skipped = parse_program(src)
+        assigns, skipped = parse_program(src, unroll=unroll, unroll_log=unroll_log)
         return assigns, sorted([*skipped, *problems], key=lambda s: s.line)
     known = frozenset(KNOWN_FUNCS) | set(funcs)
-    assigns, skipped = parse_program(script_src, known_funcs=known)
+    assigns, skipped = parse_program(
+        script_src, known_funcs=known, unroll=unroll, unroll_log=unroll_log
+    )
     inliner = _Inliner(funcs)
     out: list[Assign] = []
     extra: list[Skipped] = []

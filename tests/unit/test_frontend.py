@@ -109,12 +109,25 @@ class TestDefUse:
 
     @pytest.mark.req("FE-5")
     def test_loop_feedback(self) -> None:
-        src = "for k = 1:8\n  acc = acc + x;\nend"
+        # a non-constant bound cannot unroll: the recurrence interpretation
+        # (one iteration + FEEDBACK) applies (LP-1)
+        src = "for k = 1:n\n  acc = acc + x;\nend"
         assigns, skipped = parse_program(src)
         assert not skipped
         assert assigns[0].in_loop
         builder, _ = build_dag(assigns, CM)
         assert builder.dag.feedbacks
+
+    def test_constant_loop_unrolls_instead(self) -> None:
+        src = "acc = x;\nfor k = 1:8\n  acc = acc + x;\nend"
+        assigns, skipped = parse_program(src)
+        assert not skipped
+        assert len(assigns) == 9  # init + 8 unrolled iterations
+        assert not assigns[1].in_loop
+        builder, _ = build_dag(assigns, CM)
+        assert not builder.dag.feedbacks  # a chain in space, not a recurrence
+        legacy, _ = parse_program(src, unroll=False)
+        assert legacy[1].in_loop  # legacy mode intact
 
     def test_feedback_ii_through_divider(self) -> None:
         assigns, _ = parse_program("g0 = g0 / d;")

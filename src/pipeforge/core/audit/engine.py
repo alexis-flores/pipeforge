@@ -57,15 +57,26 @@ class Audit:
         return chain
 
 
-def audit_source(src: str, filename: str, cm: CostModel, snapshot: object | None = None) -> Audit:
+def audit_source(
+    src: str,
+    filename: str,
+    cm: CostModel,
+    snapshot: object | None = None,
+    unroll: bool = True,
+) -> Audit:
     """Audit MATLAB source text against the nkMatlib cost model.
 
     With a live MATLAB snapshot the DAG becomes shape-aware and fi-format
-    mismatches surface as FORMAT findings; without one, output is
-    bit-identical to the static analysis (pinned by golden files).
+    mismatches surface as FORMAT findings. Constant-bound loops unroll into
+    pipeline structure by default (LP-1); ``unroll=False`` keeps the legacy
+    one-iteration + FEEDBACK interpretation (the golden files pin that mode).
     """
-    assigns, skipped = parse_with_functions(src)  # local functions inline (FN-1)
+    from pipeforge.core.frontend.loops import UnrollNote
+
+    unrolls: list[UnrollNote] = []
+    assigns, skipped = parse_with_functions(src, unroll=unroll, unroll_log=unrolls)
     builder, problems = build_dag(assigns, cm, snapshot=snapshot)
+    builder.unrolls = unrolls  # type: ignore[attr-defined]  # UNROLL finding (LP-1)
     skipped = sorted([*skipped, *problems], key=lambda s: s.line)
     findings = find_findings(builder, cm)
     return Audit(filename, cm, builder.dag, findings, skipped)

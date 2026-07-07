@@ -80,7 +80,43 @@ class WorkspaceSnapshot:
         return name in self.variables
 
     def get(self, name: str) -> VarInfo | None:
-        return self.variables.get(name)
+        direct = self.variables.get(name)
+        if direct is not None:
+            return direct
+        return self._lane(name)
+
+    def _lane(self, name: str) -> VarInfo | None:
+        """Resolve a constant-index lane like 'x(3)' / 'm(2, 3)' from its base
+        variable's values (LN-1) — 1-based, MATLAB column-major."""
+        import re
+
+        m = re.fullmatch(r"(.+)\((\d+)(?:,\s*(\d+))?\)", name)
+        if m is None:
+            return None
+        base = self.variables.get(m.group(1))
+        if base is None or not base.values:
+            return None
+        rows, cols = base.shape2d
+        if m.group(3) is None:
+            idx = int(m.group(2)) - 1  # linear, column-major
+        else:
+            r, c = int(m.group(2)) - 1, int(m.group(3)) - 1
+            if not (0 <= r < rows and 0 <= c < cols):
+                return None
+            idx = c * rows + r
+        if not 0 <= idx < len(base.values):
+            return None
+        value = base.values[idx]
+        return VarInfo(
+            name=name,
+            class_name=base.class_name,
+            size=(1, 1),
+            is_real=base.is_real,
+            fi=base.fi,
+            vmin=value,
+            vmax=value,
+            values=(value,),
+        )
 
     def fi_formats(self) -> dict[str, FiFormat]:
         return {n: v.fi for n, v in self.variables.items() if v.fi is not None}

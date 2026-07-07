@@ -68,6 +68,7 @@ using one shared cost model so every answer is comparable to every other.
 | Sanity-check cells + logic depth before Vivado | [`synth`](#cli-synth) | a `.sv` + yosys |
 | Spend fewer bits where ranges prove it's safe | [`codegen --mixed`](#cli-codegen) | a `.m` + input ranges |
 | Apply the findings' rewrites automatically | [`optimize`](#cli-optimize) | a `.m` file |
+| Turn loops into pipelined / parallel structure | [automatic (LP-1)](#the-matlab-subset-pipeforge-understands) + `optimize` | constant bounds |
 | Run the whole gate from one file | [`ci`](#cli-ci) | a `.pipeforge.toml` sidecar |
 | Build a filter (z⁻¹ taps) | [`delay(x)`](#the-matlab-subset-pipeforge-understands) | a `.m` file |
 | Drop the module into an AXI-Stream design | [`codegen --axis`](#cli-codegen) | a `.m` file |
@@ -890,8 +891,14 @@ Ctrl+Shift+M swaps the static snapshot for a live one when you need that.
 pipeforge-cli optimize model.m -o model_opt.m     # or --in-place
 ```
 
-Applies RECIP, CDIV, SERDIV, POW, and CSE to the MATLAB *text*: rewritten
-statements carry a `% pipeforge:` marker, untouched lines stay byte-identical.
+Applies RECIP, CDIV, SERDIV, POW, CSE, and BALANCE to the MATLAB *text*:
+rewritten statements carry a `% pipeforge:` marker, untouched lines stay
+byte-identical. BALANCE restructures additions for depth — long `a+b+c+…`
+chains and constant accumulator loops (`for k=1:N; acc = acc + …; end`) become
+balanced adder trees, **bit-exactly** (wrap addition is associative), cutting
+N sequential adds to ⌈log₂N⌉+1. RECIP/CSE group by *value identity*, so a
+variable reassigned between uses (or different iterations of an unrolled loop)
+is never wrongly shared.
 The report is deliberately honest: critical-path delta, divider delta, and a
 per-output accuracy comparison (these rewrites move fixed-point rounding — the
 optimized pipeline is usually *more* accurate, but the numbers say so). When
@@ -1215,6 +1222,34 @@ function y = delay(x)
   y = s; s = x;
 end
 ```
+
+**Constant-bound loops unroll into structure (LP-1).** In a streaming pipeline
+a `for k = 1:N` with a compile-time trip count is not control flow — it is N
+copies in space. The frontend unrolls it automatically (nested loops multiply;
+steps and negative ranges work; budgets: 1024 iterations/loop, 10k statements
+total), the UNROLL finding says it happened, and every downstream capability
+sees the true dataflow:
+
+```matlab
+x = a .* 0.5 + 0.5;
+for k = 1:3                      % unrolls: three cascaded pipeline stages
+  x = 0.5 .* (x + a ./ x);       % Newton refinement — cosim proves bit-exact
+end
+
+for k = 1:3                      % unrolls into three PARALLEL lanes (LN-1):
+  y(k) = x(k) .* g(k);           % ports x_1..x_3/g_1..g_3, outputs y_1..y_3
+end
+
+acc = b;
+for k = 1:8                      % `optimize` turns this into a balanced adder
+  acc = acc + x(k) .* g(k);      % tree: depth 8 -> 4, BIT-EXACT (wrap adds
+end                              % are associative) — LP-2
+```
+
+Constant element indexing is real: `x(3)` reads lane 3 (a scalar input port
+`x_3`; `.mat` snapshots resolve it from the base array), and `y(2) = …` defines
+lane `y_2`. Non-constant bounds (`for k = 1:n`) keep the legacy recurrence
+interpretation — one analyzed iteration plus the FEEDBACK finding.
 
 Everything else — `if`/`while` bodies, strings, comparisons, unknown functions,
 non-constant exponents — is **skipped and reported** with its line and reason.

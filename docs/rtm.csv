@@ -120,6 +120,7 @@ FE-1,tests/unit/test_frontend.py::TestGrammar::test_parentheses,passed
 FE-1,tests/unit/test_frontend.py::TestGrammar::test_power_operators,passed
 FE-1,tests/unit/test_frontend.py::TestGrammar::test_precedence,passed
 FE-1,tests/unit/test_frontend.py::TestGrammar::test_unary_minus_and_transpose,passed
+FE-2,tests/unit/test_frontend.py::TestDefUse::test_constant_loop_unrolls_instead,passed
 FE-2,tests/unit/test_frontend.py::TestDefUse::test_def_use_links_across_statements,passed
 FE-2,tests/unit/test_frontend.py::TestDefUse::test_feedback_ii_through_divider,passed
 FE-2,tests/unit/test_frontend.py::TestDefUse::test_loop_feedback,passed
@@ -179,6 +180,9 @@ FX-5,tests/unit/test_fxp_ops.py::TestUsqrt::test_usqrt_monotone,passed
 FX-5,tests/unit/test_fxp_ops.py::TestWrapConsistency::test_abs_nonnegative_or_wrapped_min,passed
 FX-5,tests/unit/test_fxp_ops.py::TestWrapConsistency::test_add_sub_wrap,passed
 FX-5,tests/unit/test_fxp_ops.py::TestWrapConsistency::test_neg_involution,passed
+LN-1,tests/integration/test_loops_e2e.py::test_map_loop_lanes_bit_exact,passed
+LP-1,tests/integration/test_loops_e2e.py::test_unrolled_newton_bit_exact,passed
+LP-2,tests/integration/test_loops_e2e.py::test_balanced_dot_product_bit_exact_vs_chain,passed
 MO-1,tests/gui/test_motion.py::test_critical_path_emphasized_statically,passed
 MO-2,tests/gui/test_motion.py::test_view_switch_is_instant_and_safe,passed
 MO-3,tests/gui/test_motion.py::test_adopt_config_updates_chip,passed
@@ -203,7 +207,7 @@ MP-6,tests/unit/test_mapping_persist.py::test_sidecar_roundtrip_human_readable,p
 MX-1,tests/integration/test_engineer_workflow_e2e.py::test_mixed_precision_module_bit_exact,passed
 NF-1,tests/unit/test_perf.py::test_audit_500_statements_under_one_second,passed
 NF-2,tests/unit/test_perf.py::test_golden_model_throughput,passed
-NF-3,tests/gui/test_main_window.py::test_cold_start_under_two_seconds,passed
+NF-3,tests/gui/test_main_window.py::test_cold_start_under_two_seconds,failed
 NF-4,tests/gui/test_main_window.py::test_malformed_input_never_crashes,passed
 NF-4,tests/gui/test_main_window.py::test_problem_shows_toast_not_dialog,passed
 NF-4,tests/gui/test_ux.py::test_problem_toast_click_opens_console,passed

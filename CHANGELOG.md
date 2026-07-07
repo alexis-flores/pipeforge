@@ -15,6 +15,24 @@ to waveform viewer, CI gate, and integration-ready RTL — and got a star. ✵
   comparing accuracy over your actual values. `fi` types still need the live
   bridge (opaque MCOS blobs in `.mat` files).
 
+### Loops become hardware
+- **LP-1 constant-loop unrolling**: `for k = 1:N` with literal bounds unrolls
+  into pipeline structure automatically (nested/stepped/negative ranges;
+  budgeted; UNROLL finding). Non-constant bounds keep the recurrence
+  interpretation (FEEDBACK). Findings dedupe by value identity so unrolled
+  iterations never produce false RECIP/CSE hits.
+- **LN-1 element lanes**: constant indexing is real — `x(3)` is a scalar
+  input lane, `y(2) = …` defines lane `y_2`, map loops become parallel
+  hardware, and `.mat` snapshots resolve lanes from the base array
+  (column-major). Cosim harness/testbench port names sanitize accordingly.
+- **LP-2 BALANCE**: `optimize` restructures addition chains and constant
+  accumulator loops into balanced adder trees — bit-exact (wrap addition),
+  depth N → ⌈log₂N⌉+1. Verilator-proved: unrolled Newton, lane map loops,
+  and a balanced 8-tap dot product all cosim bit-exact.
+- Fixed en route: a testbench/pipe race where matlib's RAM-backed pipes
+  (DELAY>32) dropped the first sample fed on the reset-release edge — the
+  generated benches now idle one settle cycle.
+
 ### Language & frontend
 - **Local functions** (FN-1): scripts may define `function out = name(args) … end`
   after the body; calls inline hygienically at every call site (nested calls

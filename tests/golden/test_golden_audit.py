@@ -25,7 +25,11 @@ CASES = ["example", "normalize3d", "rootsqr", "feedback", "gen500"]
 
 def _audit(name: str):
     src = (FIXTURES / f"{name}.m").read_text(encoding="utf-8")
-    return audit_source(src, f"{name}.m", CostModel(16, 12))
+    # unroll=False: the goldens pin the SEED auditor's interpretation, where a
+    # constant-bound loop is one analyzed iteration + a FEEDBACK finding. The
+    # LP-1 default (unrolling) is a deliberate semantic upgrade tested in
+    # tests/unit; parity with the frozen seed reference stays checkable here.
+    return audit_source(src, f"{name}.m", CostModel(16, 12), unroll=False)
 
 
 @pytest.mark.req("AU-5")

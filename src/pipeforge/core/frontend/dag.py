@@ -32,8 +32,13 @@ from pipeforge.core.frontend.parser import Assign, Skipped
 
 
 def port_name(label: str) -> str:
-    """RTL-safe port name for a (possibly dotted) input label: cfg.gain -> cfg_gain."""
-    return label.replace(".", "_")
+    """RTL-safe port name for an input label.
+
+    Dotted struct fields and constant-index lanes both flatten:
+    ``cfg.gain`` -> ``cfg_gain``, ``x(3)`` -> ``x_3``, ``m(2, 3)`` -> ``m_2_3``.
+    """
+    out = label.replace(".", "_").replace(", ", "_").replace(",", "_")
+    return out.replace("(", "_").replace(")", "").strip("_")
 
 
 @dataclass
@@ -197,6 +202,16 @@ class DagBuilder:
         if isinstance(e, Str):
             return self.leaf("const", e.text, e.span)
         if isinstance(e, Index):
+            key = canon(e)  # 'x(3)' — matches constant-index lane targets (LN-1)
+            if key in self.env:
+                return self.dag.nodes[self.env[key]]
+            const_lanes = e.args and all(
+                isinstance(a, Num) and a.value == int(a.value) and a.value >= 1 for a in e.args
+            )
+            if e.name not in self.env and const_lanes and len(e.args) <= 2:
+                # a constant-index read of an undefined vector: one scalar
+                # input lane, e.g. x(3) — codegen gets port x_3 (LN-1)
+                return self.leaf("input", key, e.span)
             args = [self.build_expr(a) for a in e.args]
             base = (
                 self.dag.nodes[self.env[e.name]]
@@ -409,9 +424,16 @@ class DagBuilder:
             if use_nid is None:
                 # self-reference to an undefined var: it appeared as an input leaf
                 use_nid = self._leaf_cache.get(("input", a.target))
-            ii = self.feedback_path_lat(root, use_nid) if use_nid is not None else None
-            self.dag.feedbacks.append((a.target, a.line, ii if ii is not None else root.ready))
-        root.signal = a.target
+            # a self-reference is a *recurrence* only inside a (non-unrolled)
+            # loop or when no prior definition exists (streaming accumulator);
+            # with a prior def it is an ordinary chain — unrolled iterations
+            # land here and must NOT each report feedback (LP-1)
+            if a.in_loop or prior is None:
+                ii = self.feedback_path_lat(root, use_nid) if use_nid is not None else None
+                self.dag.feedbacks.append((a.target, a.line, ii if ii is not None else root.ready))
+        # signal is the RTL-facing identity: lane targets sanitize ('y(1)' ->
+        # 'y_1') so emitted SV, harness ports, and trace names agree (LN-1)
+        root.signal = port_name(a.target)
         self.env[a.target] = root.nid
         self.dag.statements.append(
             StmtInfo(a.line, a.target, root.ready, root.ready - base, root.nid)

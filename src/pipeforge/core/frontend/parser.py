@@ -8,6 +8,7 @@ the file (FE-3). Simple ``for`` loops are tracked for feedback detection
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from pipeforge.core.costmodel.model import KNOWN_FUNCS
 from pipeforge.core.frontend.ast import (
@@ -27,6 +28,9 @@ from pipeforge.core.frontend.ast import (
     Call as CallNode,
 )
 from pipeforge.core.frontend.lexer import MatlabSyntaxError, Tok, tokenize
+
+if TYPE_CHECKING:
+    from pipeforge.core.frontend.loops import UnrollNote
 
 ADDITIVE = ("+", "-")
 MULTIPLICATIVE = ("*", ".*", "/", "./", "\\", ".\\")
@@ -205,6 +209,36 @@ class ExprParser:
             return args
 
 
+def _const_index_target(lhs: list[Tok]) -> str | None:
+    """`y ( 3 )` or `y ( 2 , 3 )` -> the lane key 'y(3)' / 'y(2, 3)' (LN-1).
+
+    Matches the canonical Index text exactly, so lane writes and lane reads
+    resolve to the same definition. Non-constant indices return None (legacy
+    whole-variable assignment).
+    """
+    if len(lhs) < 4 or lhs[1].text != "(" or lhs[-1].text != ")":
+        return None
+    nums: list[str] = []
+    expect_num = True
+    for t in lhs[2:-1]:
+        if expect_num and t.kind == "NUM":
+            try:
+                v = float(t.text)
+            except ValueError:
+                return None
+            if v != int(v) or int(v) < 1:
+                return None
+            nums.append(str(int(v)))
+            expect_num = False
+        elif not expect_num and t.kind == "OP" and t.text == ",":
+            expect_num = True
+        else:
+            return None
+    if expect_num or not nums or len(nums) > 2:
+        return None
+    return f"{lhs[0].text}({', '.join(nums)})"
+
+
 def split_statements(toks: list[Tok]) -> list[list[Tok]]:
     """Split a token stream into statements at top-level newlines/semicolons."""
     stmts: list[list[Tok]] = []
@@ -231,9 +265,18 @@ def split_statements(toks: list[Tok]) -> list[list[Tok]]:
 
 
 def parse_program(
-    src: str, known_funcs: frozenset[str] | None = None
+    src: str,
+    known_funcs: frozenset[str] | None = None,
+    unroll: bool = True,
+    unroll_log: list[UnrollNote] | None = None,
 ) -> tuple[list[Assign], list[Skipped]]:
-    """Parse a MATLAB script into assignments plus a skipped-statement list."""
+    """Parse a MATLAB script into assignments plus a skipped-statement list.
+
+    Constant-bound `for` loops unroll into their iterations first (LP-1);
+    `unroll=False` keeps the legacy one-iteration + FEEDBACK interpretation
+    (the golden files pin that mode). `unroll_log` collects UnrollNote records
+    for the UNROLL audit finding.
+    """
     funcs = known_funcs if known_funcs is not None else frozenset(KNOWN_FUNCS)
     assigns: list[Assign] = []
     skipped: list[Skipped] = []
@@ -243,7 +286,17 @@ def parse_program(
         return [], [Skipped(exc.line, exc.message)]
     block_stack: list[str] = []  # 'for' | 'other'
 
-    for stmt in split_statements(toks):
+    statements = split_statements(toks)
+    if unroll:
+        from pipeforge.core.frontend.loops import expand_constant_loops
+
+        expansion = expand_constant_loops(statements)
+        statements = expansion.statements
+        skipped.extend(expansion.problems)
+        if unroll_log is not None:
+            unroll_log.extend(expansion.notes)
+
+    for stmt in statements:
         first = stmt[0]
         line = first.line
         word = first.text if first.kind == "ID" else ""
@@ -294,6 +347,11 @@ def parse_program(
             if lhs[0].kind != "ID":
                 raise MatlabSyntaxError("assignment target must be an identifier", line)
             indexed = len(lhs) > 1
+            target = lhs[0].text
+            if indexed:
+                lane = _const_index_target(lhs)
+                if lane is not None:
+                    target = lane  # y(2) = … defines the lane 'y(2)' (LN-1)
             rhs_toks = stmt[eq + 1 :]
             if not rhs_toks:
                 raise MatlabSyntaxError("missing right-hand side", line)
@@ -307,9 +365,7 @@ def parse_program(
                 t = p.peek()
                 raise MatlabSyntaxError(f"unexpected token {t.text!r}", t.line)
             span = Span(stmt[0].pos, stmt[-1].pos + len(stmt[-1].text), line)
-            assigns.append(
-                Assign(lhs[0].text, indexed, rhs, line, span, in_loop="for" in block_stack)
-            )
+            assigns.append(Assign(target, indexed, rhs, line, span, in_loop="for" in block_stack))
         except MatlabSyntaxError as exc:
             skipped.append(Skipped(exc.line, exc.message))
     return assigns, skipped

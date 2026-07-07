@@ -27,7 +27,9 @@ s2 = (u + v) .* k2;
 % FUSE: a + b + c -> one matadd3 stage
 t3 = a + b + c;
 
-% FEEDBACK: acc depends on itself -> initiation interval reported
-for i = 1:16
+% FEEDBACK: acc depends on itself across a non-constant trip count ->
+% a true recurrence; the initiation interval is reported. (A *constant*
+% bound would unroll into pipeline stages instead: the UNROLL finding.)
+for i = 1:niter
     acc = acc + t3;
 end
