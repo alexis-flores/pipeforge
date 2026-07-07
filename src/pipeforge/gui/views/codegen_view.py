@@ -47,8 +47,27 @@ class CodegenView(QWidget):
         self.save_btn = QPushButton("Save .sv…")
         self.save_btn.clicked.connect(self._save)
         self.save_btn.setEnabled(False)
+        self.axis_btn = QPushButton("Save AXI-S wrapper…")
+        self.axis_btn.setToolTip(
+            "tvalid/tready wrapper with credit-based backpressure — drops into "
+            "Vivado block designs (the nkMatlib core itself cannot stall)"
+        )
+        self.axis_btn.clicked.connect(self._save_axis)
+        self.axis_btn.setEnabled(False)
+        self.synth_btn = QPushButton("Synth estimate (yosys)")
+        self.synth_btn.setToolTip(
+            "Quick generic-yosys synthesis: cell counts + logic depth — a "
+            "sanity check, not a vendor result"
+        )
+        self.synth_btn.clicked.connect(self._synth)
+        self.synth_btn.setEnabled(False)
+        self.synth_label = QLabel("")
+        self.synth_label.setObjectName("muted")
+        self.synth_label.setWordWrap(True)
         actions = QHBoxLayout()
+        actions.addWidget(self.synth_btn)
         actions.addStretch(1)
+        actions.addWidget(self.axis_btn)
         actions.addWidget(self.save_btn)
 
         box = QVBoxLayout(self)
@@ -57,6 +76,7 @@ class CodegenView(QWidget):
         box.addWidget(title)
         box.addWidget(self.summary)
         box.addWidget(self.source, 1)
+        box.addWidget(self.synth_label)
         box.addLayout(actions)
 
         workspace.auditChanged.connect(self._on_audit)
@@ -68,11 +88,14 @@ class CodegenView(QWidget):
         return self._ws.m_path.stem if self._ws.m_path else "generated"
 
     def _on_audit(self, audit: object) -> None:
+        self.synth_label.setText("")
         if not isinstance(audit, Audit):
             self._sv = ""
             self.source.setPlainText("")
             self.summary.setText(_HINT)
             self.save_btn.setEnabled(False)
+            self.axis_btn.setEnabled(False)
+            self.synth_btn.setEnabled(False)
             return
         try:
             self._sv = generate_sv(audit, self._module_name())
@@ -81,6 +104,8 @@ class CodegenView(QWidget):
             self.source.setPlainText("")
             self.summary.setText(f"cannot generate: {exc}")
             self.save_btn.setEnabled(False)
+            self.axis_btn.setEnabled(False)
+            self.synth_btn.setEnabled(False)
             return
         self.source.setPlainText(self._sv)
         result = lint_source(self._sv, f"{self._module_name()}.sv", self._ws.cost_model)
@@ -92,6 +117,75 @@ class CodegenView(QWidget):
             f"{sum(audit.census.values())} instances — {badge}"
         )
         self.save_btn.setEnabled(True)
+        self.axis_btn.setEnabled(True)
+        self.synth_btn.setEnabled(True)
+
+    def _save_axis(self) -> None:
+        """Emit the AXI-Stream wrapper next to the generated module (AX-1)."""
+        audit = self._ws.audit
+        if audit is None:
+            return
+        from pipeforge.core.codegen.axis import generate_axis_wrapper
+
+        try:
+            wrapper = generate_axis_wrapper(audit, self._module_name())
+        except ValueError as exc:
+            self.summary.setText(f"cannot wrap: {exc}")
+            return
+        default = str(
+            (self._ws.m_path or Path("generated.m")).with_name(f"{self._module_name()}_axis.sv")
+        )
+        fname, _ = QFileDialog.getSaveFileName(self, "Save AXI-S wrapper", default, "*.sv")
+        if fname:
+            Path(fname).write_text(wrapper, encoding="utf-8")
+            self.summary.setText(f"wrote {fname} (instantiate it next to {self._module_name()})")
+
+    def _synth(self) -> None:
+        """Run the yosys estimate off the GUI thread (SY-1)."""
+        if not self._sv:
+            return
+        from PyQt6.QtCore import QObject, QRunnable, QThreadPool, pyqtSignal
+
+        from pipeforge.gui.detect import detect_matlib_rtl
+
+        sv_text = self._sv
+        top = self._module_name()
+        include = detect_matlib_rtl(self._ws.m_path)
+
+        class _Signals(QObject):
+            done = pyqtSignal(str)
+
+        class _SynthJob(QRunnable):
+            def __init__(self) -> None:
+                super().__init__()
+                self.signals = _Signals()
+
+            def run(self) -> None:
+                import tempfile
+                from pathlib import Path as _P
+
+                from pipeforge.core.synth.estimate import SynthUnavailable, run_synth_estimate
+
+                try:
+                    with tempfile.TemporaryDirectory(prefix="pipeforge_synth_") as tmp:
+                        src = _P(tmp) / f"{top}.sv"
+                        src.write_text(sv_text, encoding="utf-8")
+                        est = run_synth_estimate(
+                            [src], top, include_dirs=[include] if include else []
+                        )
+                    self.signals.done.emit(f"synth estimate: {est.summary()}")
+                except SynthUnavailable as exc:
+                    self.signals.done.emit(str(exc).splitlines()[0] + " (see console)")
+
+        self.synth_btn.setEnabled(False)
+        self.synth_label.setText("running yosys…")
+        self._synth_job = _SynthJob()  # keep a ref: queued signal delivery (NF-4)
+        self._synth_job.signals.done.connect(self._on_synth)
+        QThreadPool.globalInstance().start(self._synth_job)
+
+    def _on_synth(self, message: str) -> None:
+        self.synth_btn.setEnabled(True)
+        self.synth_label.setText(message)
 
     def _save(self) -> None:
         if not self._sv:

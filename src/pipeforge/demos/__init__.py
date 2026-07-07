@@ -21,6 +21,7 @@ class DemoEntry:
     description: str
     command: str  # suggested CLI, with {dir} placeholder resolved
     gui: str  # how to try it in the GUI
+    view: str = ""  # GUI capability this demo showcases (auto-navigation)
 
     def paths(self) -> list[Path]:
         base = demo_dir()
@@ -44,6 +45,7 @@ def load_index() -> list[DemoEntry]:
                 description=str(item["description"]),
                 command=str(item["command"]).replace("{dir}", str(demo_dir())),
                 gui=str(item["gui"]),
+                view=str(item.get("view", "")),
             )
         )
     return out

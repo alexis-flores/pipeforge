@@ -27,11 +27,13 @@ class DemosDialog(QDialog):
         self,
         open_path: Callable[[Path], None],
         parent: QWidget | None = None,
+        navigate: Callable[[str], None] | None = None,
     ) -> None:
         super().__init__(parent)
         self.setWindowTitle("PipeForge demos")
         self.resize(840, 480)
         self._open_path = open_path
+        self._navigate = navigate
         self._entries: list[DemoEntry] = load_index()
 
         self.listing = QListWidget()
@@ -103,3 +105,5 @@ class DemosDialog(QDialog):
         self.accept()
         for path in entry.paths():
             self._open_path(path)
+        if self._navigate is not None and entry.view:
+            self._navigate(entry.view)  # land on the view the demo showcases

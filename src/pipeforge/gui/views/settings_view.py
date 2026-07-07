@@ -21,7 +21,6 @@ from PyQt6.QtWidgets import (
 from pipeforge.gui.theme.manager import ThemeManager
 from pipeforge.gui.workspace import Workspace
 from pipeforge.services.matlab_bridge import MatlabConfig
-from pipeforge.services.tools import detect_tools
 
 
 class SettingsView(QWidget):
@@ -225,8 +224,17 @@ class SettingsView(QWidget):
             self._save_matlab()
 
     def refresh_tools(self) -> None:
+        """Probe external tools off the GUI thread (NF-3: never blocks startup)."""
+        from pipeforge.gui.toolprobe import probe_tools_async
+
+        self.tools_label.setText("Detecting…")
+        probe_tools_async(self._on_tools)
+
+    def _on_tools(self, tools: object) -> None:
+        if not isinstance(tools, dict):
+            return
         lines = []
-        for status in detect_tools().values():
+        for status in tools.values():
             if status.available:
                 lines.append(f"● {status.name} — {status.feature} ({status.version})")
             else:

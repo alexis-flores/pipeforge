@@ -75,11 +75,24 @@ class AuditView(QWidget):
         self.timeline.set_layout(layout_for_audit(audit))
         self.findings.set_findings(audit.findings, audited=True)
         census = audit.census
-        self._summary.setText(
+        text = (
             f"{audit.filename} — {audit.total_latency} cycles critical path, "
             f"{sum(census.values())} operator instances, {audit.divider_count} dividers, "
             f"{len(audit.findings)} findings, {len(audit.skipped)} skipped statements."
         )
+        from pipeforge.core.costmodel.resources import estimate_resources
+
+        est = estimate_resources(census, audit.cm)
+        text += f"  Resources: {est.summary()}."
+        savings = sum(f.savings for f in audit.findings)
+        if savings > 0:
+            text += (
+                f"  Next: the Rewrite column shows how to reclaim up to {savings} cycles; "
+                "Codegen (Ctrl+4) writes the SystemVerilog skeleton."
+            )
+        elif audit.findings:
+            text += "  Next: Codegen (Ctrl+4) writes the SystemVerilog skeleton."
+        self._summary.setText(text)
 
     def _on_finding(self, finding: object) -> None:
         if isinstance(finding, Finding) and finding.node:

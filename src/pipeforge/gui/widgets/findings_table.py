@@ -39,8 +39,8 @@ class FindingsTable(QWidget):
         self.affirmation.setObjectName("success")
         self.affirmation.hide()
 
-        self._table = QTableWidget(0, 4)
-        self._table.setHorizontalHeaderLabels(["Tag", "Line", "Saves", "Finding"])
+        self._table = QTableWidget(0, 5)
+        self._table.setHorizontalHeaderLabels(["Tag", "Line", "Saves", "Finding", "Rewrite"])
         self._table.setSortingEnabled(True)
         self._table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self._table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
@@ -93,14 +93,20 @@ class FindingsTable(QWidget):
             saves.setData(Qt.ItemDataRole.DisplayRole, f.savings)
             msg = QTableWidgetItem(f.message)
             msg.setToolTip(f.suggestion)
-            for item in (tag, line, saves, msg):
+            fix = QTableWidgetItem(f.suggestion)
+            fix.setToolTip(f.suggestion)
+            for item in (tag, line, saves, msg, fix):
                 item.setData(Qt.ItemDataRole.UserRole, r)
             self._table.setItem(r, 0, tag)
             self._table.setItem(r, 1, line)
             self._table.setItem(r, 2, saves)
             self._table.setItem(r, 3, msg)
+            self._table.setItem(r, 4, fix)
         self._table.setSortingEnabled(True)
         self._table.resizeColumnsToContents()
+        for col in (3, 4):  # long prose columns: cap, tooltip carries the rest
+            if self._table.columnWidth(col) > 420:
+                self._table.setColumnWidth(col, 420)
 
     def _activate(self, row: int, _col: int) -> None:
         item = self._table.item(row, 0)

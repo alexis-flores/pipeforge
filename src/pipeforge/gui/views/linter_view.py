@@ -9,6 +9,8 @@ and shows each finding with its concrete fix.
 from __future__ import annotations
 
 from PyQt6.QtWidgets import (
+    QFileDialog,
+    QHBoxLayout,
     QLabel,
     QPushButton,
     QTableWidget,
@@ -52,6 +54,22 @@ class LinterView(QWidget):
 
         self.relint_btn = QPushButton("Re-lint")
         self.relint_btn.clicked.connect(self.relint)
+        self.open_btn = QPushButton("Open .sv…")
+        self.open_btn.setToolTip("Choose the SystemVerilog file to check")
+        self.open_btn.clicked.connect(self._open_sv)
+        from PyQt6.QtWidgets import QCheckBox
+
+        self.verilator_check = QCheckBox("also run Verilator lint")
+        self.verilator_check.setToolTip(
+            "Merge `verilator --lint-only -Wall` findings (general SV problems: "
+            "width mismatches, latches, UNOPTFLAT) into the table (SL-7)"
+        )
+        self.verilator_check.toggled.connect(lambda _c: self.relint())
+        actions = QHBoxLayout()
+        actions.addWidget(self.open_btn)
+        actions.addWidget(self.verilator_check)
+        actions.addStretch(1)
+        actions.addWidget(self.relint_btn)
 
         box = QVBoxLayout(self)
         box.setContentsMargins(24, 16, 24, 16)
@@ -60,13 +78,22 @@ class LinterView(QWidget):
         box.addWidget(self.summary)
         box.addWidget(self.affirmation)
         box.addWidget(self.table, 1)
-        box.addWidget(self.relint_btn)
+        box.addLayout(actions)
 
         workspace.fileChanged.connect(lambda _p: self.relint())
         workspace.formatChanged.connect(lambda _w, _s: self.relint())
 
     def set_theme(self, _theme: Theme) -> None:
         pass
+
+    def _open_sv(self) -> None:
+        from pathlib import Path
+
+        fname, _ = QFileDialog.getOpenFileName(
+            self, "Open SystemVerilog file", "", "SystemVerilog (*.sv)"
+        )
+        if fname:
+            self._ws.open_file(Path(fname))  # emits fileChanged → relint
 
     def relint(self) -> None:
         sv_path = self._ws.sv_path
@@ -82,6 +109,22 @@ class LinterView(QWidget):
             return
         # the divider-count check (SL-6) needs the optimized DAG from the .m
         result = lint_source(text, sv_path.name, self._ws.cost_model, audit=self._ws.audit)
+        if self.verilator_check.isChecked():
+            from pipeforge.core.svlint.verilator import VerilatorUnavailable, verilator_lint
+            from pipeforge.gui.detect import detect_matlib_rtl
+
+            include = detect_matlib_rtl(sv_path)
+            try:
+                result.findings.extend(
+                    verilator_lint(
+                        sv_path,
+                        include_dirs=[include] if include else [],
+                        width=self._ws.width,
+                        scale=self._ws.scale,
+                    )
+                )
+            except VerilatorUnavailable as exc:
+                self._ws.problem.emit(str(exc))
         self.summary.setText(
             f"{sv_path.name} — backend: {result.backend}, module: {result.module or '?'} — "
             f"{len(result.findings)} finding(s)"

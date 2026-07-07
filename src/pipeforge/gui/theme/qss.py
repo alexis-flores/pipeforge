@@ -26,6 +26,10 @@ def build_qss(t: Theme) -> str:
 QMainWindow, QDialog {{ background: {t["bg"]}; }}
 QWidget#view {{ background: {t["bg"]}; }}
 QWidget#sidebar {{ background: {t["surface"]}; border-right: 1px solid {t["border"]}; }}
+QWidget#sidebar QToolButton {{ font-size: {FONT_SMALL}px; padding: 6px 2px; }}
+QMenuBar {{ background: {t["surface"]}; border-bottom: 1px solid {t["border"]}; }}
+QMenuBar::item {{ padding: 4px 10px; background: transparent; }}
+QMenuBar::item:selected {{ background: {t["selection"]}; }}
 QToolButton {{
     background: transparent; border: none; border-left: 2px solid transparent;
     border-radius: 6px; padding: 8px; color: {t["textSecondary"]};

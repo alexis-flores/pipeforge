@@ -2,57 +2,81 @@
   {
     "id": "01_findings",
     "title": "Audit: every finding type",
-    "files": ["01_findings.m"],
+    "files": [
+      "01_findings.m"
+    ],
     "description": "One small script that triggers all seven optimization findings — RECIP, CDIV, SERDIV, POW, CSE, FUSE, FEEDBACK — each with line, cycle savings, and a concrete rewrite.",
     "command": "pipeforge-cli audit {dir}/01_findings.m",
-    "gui": "Open it; the findings table fills and clicking a finding highlights its source line."
+    "gui": "Open it; the findings table fills and clicking a finding highlights its source line.",
+    "view": "audit"
   },
   {
     "id": "02_normalize3d",
     "title": "Critical path & the timeline",
-    "files": ["02_normalize3d.m"],
+    "files": [
+      "02_normalize3d.m"
+    ],
     "description": "3D vector normalization: a 48-cycle critical path at 16/12, dominated by dividers. The timeline shows the three divisions as long orange bars; RECIP suggests removing two.",
     "command": "pipeforge-cli audit {dir}/02_normalize3d.m",
-    "gui": "Open it and switch to the Visualizer; toggle 'Show slack'."
+    "gui": "Open it and switch to the Visualizer; toggle 'Show slack'.",
+    "view": "visualizer"
   },
   {
     "id": "03_pipeline",
     "title": "Matched .m/.sv pair: lint, codegen, co-sim",
-    "files": ["03_pipeline.m", "03_pipeline.sv"],
+    "files": [
+      "03_pipeline.m",
+      "03_pipeline.sv"
+    ],
     "description": "A hand-written nkMatlib module and its MATLAB source. The lint is clean, codegen emits an equivalent module, and co-simulation matches the golden model bit-for-bit (needs Verilator).",
     "command": "pipeforge-cli lint {dir}/03_pipeline.sv && pipeforge-cli codegen {dir}/03_pipeline.m -m demo_pipeline",
-    "gui": "Open the .m (the .sv loads alongside); compare with Codegen later."
+    "gui": "Open the .m (the .sv loads alongside); compare with Codegen later.",
+    "view": "codegen"
   },
   {
     "id": "04_lint_bugs",
     "title": "Linter: classic delay-matching bugs",
-    "files": ["04_lint_bugs.sv"],
+    "files": [
+      "04_lint_bugs.sv"
+    ],
     "description": "Two planted bugs: an operand consumed with no matching `PIPE (delay-match) and a 1-cycle valid delay across a 4-cycle multiply (valid-chain). The fix text names the exact `PIPE to add.",
     "command": "pipeforge-cli lint {dir}/04_lint_bugs.sv",
-    "gui": "Run the CLI command; lint findings carry file/line and the fix."
+    "gui": "Run the CLI command; lint findings carry file/line and the fix.",
+    "view": "linter"
   },
   {
     "id": "05_ranges",
     "title": "Ranges: overflow & near-zero divisors",
-    "files": ["05_ranges.m"],
+    "files": [
+      "05_ranges.m"
+    ],
     "description": "With sig in [-3,3] and ref in [-1,1]: 'energy' overflows 16/12, 'ratio' divides by an interval crossing zero — and --recommend honestly reports the budget UNMET (no format fixes a near-zero divide). Re-run with ref=0.5:1 and it validates.",
     "command": "pipeforge-cli ranges {dir}/05_ranges.m --range sig=-3:3 --range ref=-1:1 --recommend 0.01",
-    "gui": "CLI-first demo; the same ranges power overflow flags everywhere."
+    "gui": "CLI-first demo; the same ranges power overflow flags everywhere.",
+    "view": "ranges"
   },
   {
     "id": "06_dse",
     "title": "Design-space exploration",
-    "files": ["06_dse.m"],
+    "files": [
+      "06_dse.m"
+    ],
     "description": "A divider+sqrt pipeline that makes the WIDTH/SCALE trade visible: latency climbs steeply with WIDTH+SCALE (DIV_LAT = W+S). Corner stimulus keeps worst-case error honest; the Pareto front shows the frontier between points.",
     "command": "pipeforge-cli dse {dir}/06_dse.m --widths 12,16,20 --scales 8,12,14",
-    "gui": "Open it, Exploration view, Run sweep, select a starred row, Adopt selected."
+    "gui": "Open it, Exploration view, Run sweep, select a starred row, Adopt selected.",
+    "view": "dse"
   },
   {
     "id": "07_matlab",
     "title": "MATLAB bridge: live types, .mat browsing, validation",
-    "files": ["matlab/model.m", "matlab/setup_model.m", "matlab/params.mat"],
+    "files": [
+      "matlab/model.m",
+      "matlab/setup_model.m",
+      "matlab/params.mat"
+    ],
     "description": "A model script + setup script + a real .mat parameter file. Snapshot captures every variable (struct fields dotted); validate compares the golden model against MATLAB's own values; the .mat browses alone with no script — it packs nested structs, int/logical/single/complex classes, and a 5000-sample signal to exercise every Workspace column.",
     "command": "pipeforge-cli matlab snapshot {dir}/matlab/params.mat",
-    "gui": "Open params.mat, press Ctrl+Shift+M, then browse the Workspace view (filter, sort, dotted cfg.* fields)."
+    "gui": "Open params.mat, press Ctrl+Shift+M, then browse the Workspace view (filter, sort, dotted cfg.* fields).",
+    "view": "golden"
   }
 ]
