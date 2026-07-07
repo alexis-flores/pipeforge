@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.2.2 — 2026-07-07
 
 - **UX-1 action toasts**: every action now answers in the corner — kind-styled
   (✓ success / ✵ info / ⚠ warning / ✕ error), stacking up to three with a
