@@ -28,6 +28,7 @@ with every matching delay computed. When RTL and model disagree, it tells you
 5. [The CLI, command by command](#the-cli-command-by-command)
    - [audit](#cli-audit) · [codegen](#cli-codegen) · [lint](#cli-lint) ·
      [ranges](#cli-ranges) · [dse](#cli-dse) · [cosim](#cli-cosim) ·
+     [synth](#cli-synth) · [export-tb](#cli-export-tb) · [report](#cli-report) ·
      [oracle](#cli-oracle) · [reconcile](#cli-reconcile) · [map](#cli-map) ·
      [traceability](#cli-traceability) · [matlab](#cli-matlab) · [demos](#cli-demos)
 6. [The GUI, view by view](#the-gui-view-by-view)
@@ -59,6 +60,16 @@ using one shared cost model so every answer is comparable to every other.
 | Pick the best WIDTH/SCALE | [`dse`](#cli-dse) | a `.m` file |
 | Prove RTL == model bit-for-bit | [`cosim`](#cli-cosim) | `.m` + `.sv` + Verilator |
 | Find *which stage* a failing RTL diverges at | [`cosim --bisect`](#cli-cosim) | `.m` + `.sv` + Verilator |
+| Open the failure in a waveform viewer, cursor pre-placed | [`cosim --bisect`](#cli-cosim) + GTKWave | a failing cosim run |
+| Re-run the *exact* vectors that failed | [`cosim --replay`](#cli-cosim) | a `failure.json` |
+| Hand the same vectors to a colleague / another simulator | [`export-tb`](#cli-export-tb) | a `.m` file |
+| Know how many DSP48s / LUTs this costs | [`audit --resources`](#cli-audit) | a `.m` file |
+| Sanity-check cells + logic depth before Vivado | [`synth`](#cli-synth) | a `.sv` + yosys |
+| Spend fewer bits where ranges prove it's safe | [`codegen --mixed`](#cli-codegen) | a `.m` + input ranges |
+| Drop the module into an AXI-Stream design | [`codegen --axis`](#cli-codegen) | a `.m` file |
+| Gate pull requests on lint + cosim | [SARIF/JUnit outputs](docs/ci.md) | CI + Verilator |
+| Attach one reviewable artifact to a design review | [`report`](#cli-report) | a `.m` file |
+| Re-run the audit on every save (headless) | [`audit --watch`](#cli-audit) | a `.m` file |
 | Grade the model against captured ground-truth I/O | [`oracle`](#cli-oracle) | `.m` + a `.mat` of vectors |
 | Check a `.mat` workspace against its SV `software` mirror | [`reconcile`](#cli-reconcile) | a `.mat` + a `.sv` |
 | Map MATLAB variables ↔ RTL signals | [`map`](#cli-map) | `.m` + `.sv` |
@@ -441,6 +452,23 @@ parse→generate→simulate→match loop).
 clear error naming the line — rewrite without them or extend the generator. Dotted
 variables become legal port names (`cfg.gain` → `cfg_gain_0`).
 
+**`--axis`** also emits `<module>_axis.sv`, an AXI-Stream (tvalid/tready)
+wrapper that drops into Vivado block designs: the nkMatlib core can't stall, so
+a credit counter admits a beat only when the output FIFO (depth ≥ latency,
+power of two) is guaranteed a slot when the result lands. Throughput stays 1
+beat/clock while the consumer keeps up.
+
+**`--mixed --range name=lo:hi …`** narrows range-proven operators to
+per-instance widths (MX-1): the range analysis proves how many integer bits
+each value needs; add/sub/mul-class operators (latency-independent of WIDTH)
+get the smallest safe width, with one `fixedp` interface per distinct width and
+sign-extension/truncation at boundaries — both value-preserving under the
+proof. Dividers and sqrts keep the global format (their latency depends on
+WIDTH, and narrowing them would change the schedule). Narrow multipliers cost
+fewer DSP tiles. Verify with `cosim --range …` — in-range stimulus is exactly
+where the proof holds, and there the module is **bit-exact** against the
+golden model.
+
 ---
 
 ### <a id="cli-lint"></a>`lint` — check hand-written RTL for convention/delay bugs
@@ -452,7 +480,8 @@ lint stage number is directly comparable to an audit ready time.
 **You need:** a `.sv` file. (pyslang or Verible optional for full parsing.)
 
 ```sh
-pipeforge-cli lint file.sv [-w 16 -s 12] [--disable CHECK] [--no-pyslang] [--json]
+pipeforge-cli lint file.sv [-w 16 -s 12] [--disable CHECK] [--no-pyslang] [--json] \
+    [--verilator --include matlib-main/rtl] [--sarif out.sarif] [--watch]
 ```
 
 **Tutorial:**
@@ -472,6 +501,14 @@ Checks (each suppressible via `--disable`):
 | `reset` | valid flops through unreset pipes, or data through reset valid-delays (blocks SRL inference) |
 | `naming` | instances not named `i_<module>_<signal>_<stage>` |
 | `unknown-module` | instances the cost model can't price |
+
+**`--verilator`** merges `verilator --lint-only -Wall` findings (general SV
+problems: width mismatches, latches, UNOPTFLAT) into the same table —
+PipeForge synthesizes the throwaway interface harness Verilator needs for
+`fixedp`-port modules automatically. **`--sarif FILE`** writes findings as
+SARIF 2.1.0 so GitHub annotates the PR inline ([docs/ci.md](docs/ci.md));
+**`--watch`** re-lints on every save. The GUI's Linter view has the same
+Verilator toggle.
 
 **Expect:** exit code 1 when findings exist (CI-friendly). The active parser
 backend is reported (`pyslang`, `verible`, or the regex/structural fallback —
@@ -607,7 +644,20 @@ fallback localize it; probes are the robust path for generated RTL.
 - `--cadence continuous|gapped|single|restart` — valid-driving pattern; comparison
   stays valid-gated regardless.
 - `--vectors N` — stimulus count (default 256).
+- `--range name=lo:hi` — constrain stimulus to declared input ranges (required
+  when verifying a `codegen --mixed` module: the narrowing proof only holds
+  in-range).
+- `--replay failure.json` — re-run the *exact* stimulus a previous failing run
+  persisted.
+- `--junit-xml FILE` — write the result as JUnit XML for CI dashboards
+  ([docs/ci.md](docs/ci.md)).
 - `--work-dir DIR` — keep all build artifacts and logs for inspection.
+
+**On failure you also get, automatically:** `failure.json` (the replayable
+stimulus) and — with `--bisect` on the trace path — `divergence.gtkw`, a GTKWave
+save file that pre-loads the divergent stage's operands and output with the
+cursor on the failing cycle (`gtkwave dump.vcd divergence.gtkw`, or the **Open
+in GTKWave** button in the GUI's Bisection view).
 
 **Expect:** first build of a DUT takes ~10 s; reruns are faster. Missing Verilator
 → exit 3 with an install message; the test suite *skips* these rather than failing.
@@ -793,6 +843,68 @@ unreachable MATLAB → exit 3 with the list of candidates it tried.
 
 ---
 
+### <a id="cli-synth"></a>`synth` — quick yosys sanity synthesis
+
+**Helps you:** know cells + logic depth before anyone opens Vivado.
+
+```sh
+pipeforge-cli synth dut.sv --top dut --include matlib-main/rtl
+pipeforge-cli synth model.m            # generates first, then synthesizes
+```
+
+Runs generic-yosys `synth` + `stat` + `ltp` and prints cell counts and the
+longest topological path. This is a *sanity estimate*, not a vendor result.
+nkMatlib-style SystemVerilog (interface ports, `g.WIDTH` ranges) needs the
+[yosys-slang](https://github.com/povik/yosys-slang) plugin — detected and used
+automatically; without it, plain-Verilog designs still work and interface-heavy
+ones get an actionable message. Missing yosys → exit 3.
+
+For a tool-free estimate, `audit --resources [--family xilinx7|ultrascale|
+intel|lattice]` maps the operator census to DSP tiles (16×16 → 1 DSP48E1,
+composed above the tile width) plus rough LUT/FF counts; `dse` reports the
+same DSP figure per sweep point.
+
+---
+
+### <a id="cli-export-tb"></a>`export-tb` — standalone vectors + self-checking testbench
+
+**Helps you:** rerun PipeForge's exact comparison in Questa/Vivado/Verilator —
+or hand it to a colleague — with no PipeForge installed.
+
+```sh
+pipeforge-cli export-tb model.m -o tb_out -m dut --vectors 256
+pipeforge-cli export-tb model.m -o tb_out -m dut --from-failure cosim_work/failure.json
+```
+
+Writes `stim_<input>.hex` / `expected_<output>.hex` (`$readmemh` format) and
+`tb_check.sv`, a self-checking bench that drives continuously, compares after
+the cost-model latency, prints PASS/FAIL, and exits nonzero on mismatch.
+`--from-failure` exports the exact vectors persisted by a failing cosim run
+(every failing run writes `failure.json`; `cosim --replay` re-runs it in place).
+
+---
+
+### <a id="cli-report"></a>`report` — one HTML file for the design review
+
+**Helps you:** attach a single reviewable artifact to a PR or review meeting.
+
+```sh
+pipeforge-cli report model.m -o review.html \
+  --range x=-1:1 --range y=-1:1 --sv rtl/dut.sv --family ultrascale
+```
+
+Self-contained HTML (no scripts, no external assets): the pipeline timeline as
+inline SVG, audit KPIs + findings with rewrites, the device resource estimate,
+and — when given — the range analysis and RTL lint sections. The GUI exports
+the same thing via **File → Export HTML Report**.
+
+For CI, `lint --sarif` and `cosim --junit-xml` produce PR-annotation and
+test-dashboard artifacts; see [docs/ci.md](docs/ci.md) for a ready GitHub
+Actions workflow, and `--watch` on `audit`/`lint` for save-triggered re-runs
+while iterating headless.
+
+---
+
 ### <a id="cli-demos"></a>`demos` — the packaged, copy-pasteable examples
 
 **Helps you:** learn each capability from a curated example with a ready command.
@@ -821,33 +933,39 @@ expect, click **Open in PipeForge**.
 
 ## The GUI, view by view
 
-Launch with `pipeforge` (optionally `pipeforge file.m`). The window is a sidebar of
-capabilities + a main panel + a right-hand Inspector + a bottom console. There is
-no menu bar — the sidebar *is* the navigation.
+Launch with `pipeforge` (optionally `pipeforge file.m`). Before any file is open
+you land on a **welcome screen**: recent files, an Open button, and one-click
+demos (each opens its files and jumps to the right view). The window is a menu
+bar (File / View / Run / Help — every shortcut discoverable there) + a labeled
+sidebar of capabilities in workflow order + a main panel + a right-hand
+Inspector + a bottom console. You can also **drag and drop** any `.m`/`.sv`/`.mat`
+onto the window.
 
 ```
-┌──┬────────────────────────────────────────────┬─────────────┐
-│  │  Audit                                     │  Inspector  │
-│ s│  ┌──────────────────────────────────────┐  │  node info  │
-│ i│  │  pipeline timeline (cycle ruler)     │  │  source     │
-│ d│  └──────────────────────────────────────┘  │  with span  │
-│ e│  findings table (sort / filter / click)    │  highlight  │
-│ b│                                            │             │
-│ a├────────────────────────────────────────────┤             │
-│ r│  console (Ctrl+`)                          │             │
-├──┴────────────────────────────────────────────┴─────────────┤
+┌────────── File  View  Run  Help ─────────────────────────────┐
+├──────┬────────────────────────────────────────┬─────────────┤
+│      │  Audit                                 │  Inspector  │
+│ side │  ┌──────────────────────────────────┐  │  node info  │
+│ bar  │  │  pipeline timeline (cycle ruler) │  │  source     │
+│ with │  └──────────────────────────────────┘  │  with span  │
+│labels│  findings table (sort/filter/click)    │  highlight  │
+│      ├────────────────────────────────────────┤             │
+│      │  console (Ctrl+`)                      │             │
+├──────┴────────────────────────────────────────┴─────────────┤
 │ file path                     [16/12] ● ● ○ ● ●  tool dots  │
 └──────────────────────────────────────────────────────────────┘
 ```
 
 **How the workspace ties together:** opening a `.m` (Ctrl+O) populates *all* views;
 a same-named `.sv` loads alongside automatically; opening a `.mat` makes it the
-session's MATLAB setup. Changing the WIDTH/SCALE chip re-audits everything live.
+session's MATLAB setup. The **[16/12] chip is clickable** — it opens a WIDTH/SCALE
+editor and everything re-audits live. The **tool dots are clickable** — they open
+an External Tools dialog with per-tool install commands.
 **Clicking a node anywhere selects it everywhere** — the bar in the timeline, the
 finding in the audit, the instance in codegen, the row in ranges, the stage in
 bisection all refer to the same DAG node.
 
-The sidebar (Ctrl+1…Ctrl+9 by order):
+The sidebar (Ctrl+1…Ctrl+9, Ctrl+0, Ctrl+, by order):
 
 ### <a id="gui-audit"></a>1. Audit
 The [`audit`](#cli-audit) report as an interactive panel: the pipeline timeline up
@@ -862,7 +980,48 @@ The full DAG on the same timeline, with **Show slack** (per-node spare cycles
 the active theme). graphviz `dot` refines row packing when installed. **Use it to**
 present or document the pipeline structure.
 
-### <a id="gui--workspace"></a>3. Workspace
+*(numbering = sidebar order = Ctrl+N shortcut)*
+
+### <a id="gui-ranges"></a>3. Ranges
+The [`ranges`](#cli-ranges) analysis as a panel: give each input a min/max (or
+fill them from a live MATLAB snapshot in one click), hit **Propagate**, and every
+value's interval appears with **overflow** and **÷-near-0** flags against the
+current WIDTH/SCALE. **Recommend WIDTH/SCALE** proposes a format for an error
+budget and **Adopt** applies it workspace-wide. Clicking a row selects the node
+everywhere. **Use it to** know 16/12 will (or won't) overflow before writing RTL.
+
+### <a id="gui-codegen"></a>4. Codegen
+Generates the SystemVerilog from the loaded `.m`, shows it, confirms it **lints
+clean**, and offers **Save**. **Use it to** produce a starting-point module and
+diff it against your hand-written one.
+
+### <a id="gui-linter"></a>5. Linter
+The [`lint`](#cli-lint) findings for the loaded `.sv` in a sortable table, with the
+exact fix per finding and the active parse backend reported (**Open .sv…** picks
+the file directly). **Use it to** clean up hand-written RTL against the conventions.
+
+### <a id="gui-cosim"></a>6. Co-simulation
+Configures and runs [`cosim`](#cli-cosim) off the GUI thread. A readiness line
+shows which inputs are still missing (✓/✗ with Browse buttons for the DUT, include
+dir, and extra sources — the nkMatlib include dir is auto-detected when present);
+backend and cadence options carry plain-language explanations. Tick **localize +
+triage on failure** to bisect. You get PASS/FAIL per output with FX-4 stats and a
+live elapsed counter while it runs; the result is broadcast to the Bisection view.
+**Use it to** verify RTL without touching a terminal. (Never auto-probes a
+hand-written DUT — it relies on the trace fallback.)
+
+### <a id="gui-bisection"></a>7. Bisection
+Renders a co-sim failure on the timeline: matched stages green, the **first
+divergent stage red**, everything downstream dimmed, with the wrong-math /
+delay-skew verdict. **Use it to** see *where* and *why* RTL diverged from the model.
+
+### <a id="gui-exploration"></a>8. Exploration
+The [`dse`](#cli-dse) sweep with a progress bar + Cancel, a scatter plot (error vs
+latency, log scale, Pareto points starred), and **Adopt selected** — picking a row
+updates the workspace WIDTH/SCALE and re-derives every view live. **Use it to**
+choose a fixed-point format from data.
+
+### <a id="gui--workspace"></a>9. Workspace
 The MATLAB/`.mat` browser. Open a `.mat` (Ctrl+O — it becomes the session setup),
 hit **Refresh from MATLAB**, then sort/filter the variable table: name (struct
 fields dotted), class, size, `fi` format, range. With a script also open, clicking
@@ -871,42 +1030,13 @@ ground the analysis in true types/shapes. *(This is the live [`matlab`](#cli-mat
 bridge surfaced graphically; the status-bar MATLAB chip shows snapshot freshness —
 `⟳` refreshing, `✓ time · N vars` current, `⚠ stale` when a watched file changed.)*
 
-### <a id="gui-cosim"></a>4. Co-simulation
-Configures and runs [`cosim`](#cli-cosim) off the GUI thread: set the top module,
-include dir, extra `.sv` sources, vector count, backend (cocotb/verilator), and
-cadence; tick **localize + triage on failure** to bisect. You get PASS/FAIL per
-output with FX-4 stats, and on failure the localized stage + triage; the result is
-broadcast to the Bisection view. **Use it to** verify RTL without touching a
-terminal. (Never auto-probes a hand-written DUT — it relies on the trace fallback.)
-
-### <a id="gui-bisection"></a>5. Bisection
-Renders a co-sim failure on the timeline: matched stages green, the **first
-divergent stage red**, everything downstream dimmed, with the wrong-math /
-delay-skew verdict. **Use it to** see *where* and *why* RTL diverged from the model.
-
-### <a id="gui-linter"></a>6. Linter
-The [`lint`](#cli-lint) findings for the loaded `.sv` in a sortable table, with the
-exact fix per finding and the active parse backend reported. **Use it to** clean up
-hand-written RTL against the conventions.
-
-### <a id="gui-codegen"></a>7. Codegen
-Generates the SystemVerilog from the loaded `.m`, shows it, confirms it **lints
-clean**, and offers **Save**. **Use it to** produce a starting-point module and
-diff it against your hand-written one.
-
-### <a id="gui-exploration"></a>8. Exploration
-The [`dse`](#cli-dse) sweep with a progress bar + Cancel, a scatter plot (error vs
-latency, log scale, Pareto points starred), and **Adopt selected** — picking a row
-updates the workspace WIDTH/SCALE and re-derives every view live. **Use it to**
-choose a fixed-point format from data.
-
-### <a id="gui-correspondence"></a>9. Correspondence
+### <a id="gui-correspondence"></a>10. Mapping
 The [`map`](#cli-map) workflow graphically: review proposed variable matches,
 confirm the right ones, and group operations to instances — feeding traceability
 and reconcile. **Use it to** curate the authoritative MATLAB↔RTL mapping. (Only
 confirmed entries propagate.)
 
-### <a id="gui-settings"></a>10. Settings
+### <a id="gui-settings"></a>11. Settings
 Theme (Gruvbox Dark Soft/Hard, Gruvbox Light, High Contrast — live, persisted),
 MATLAB command + **Detect**, workspace setup file, **Keep MATLAB warm** (one
 background session: ~4 s cold, then ~0.1 s/snapshot) and **Auto-refresh when files
@@ -924,12 +1054,15 @@ input ranges rendered as SVA `assume`s (library API
 | Keys | Action |
 |---|---|
 | Ctrl+O | open a `.m` / `.sv` / `.mat` |
-| Ctrl+1 … Ctrl+9 | switch view (sidebar order) |
+| Ctrl+1 … Ctrl+9, Ctrl+0, Ctrl+, | switch view (sidebar order; Ctrl+0 Mapping, Ctrl+, Settings) |
 | Ctrl+R | re-run the current analysis |
 | Ctrl+K | command palette (type-to-filter every action and theme) |
 | Ctrl+` | toggle the console |
+| Ctrl+Shift+I | toggle the Inspector |
 | Ctrl+Shift+M | refresh from MATLAB |
 | Ctrl+Shift+D | open the Demos window |
+
+(Also in the menus, and in **Help → Keyboard Shortcuts**.)
 
 Drop your own JSON theme into `~/.config/pipeforge/themes/`; malformed themes fail
 validation with a clear message and fall back to the default.

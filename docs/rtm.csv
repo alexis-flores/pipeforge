@@ -45,6 +45,7 @@ AU-5,tests/golden/test_golden_audit.py::test_text_report_matches_seed_golden[fee
 AU-5,tests/golden/test_golden_audit.py::test_text_report_matches_seed_golden[gen500],passed
 AU-5,tests/golden/test_golden_audit.py::test_text_report_matches_seed_golden[normalize3d],passed
 AU-5,tests/golden/test_golden_audit.py::test_text_report_matches_seed_golden[rootsqr],passed
+AX-1,tests/integration/test_engineer_workflow_e2e.py::test_axis_wrapper_elaborates,passed
 BI-1,tests/unit/test_bisect.py::test_clean_run_reports_no_divergence,passed
 BI-1,tests/unit/test_bisect.py::test_corrupted_stage_localized,passed
 BI-1,tests/unit/test_bisect.py::test_unobserved_intermediates_tolerated,passed
@@ -198,17 +199,21 @@ MP-6,tests/integration/test_map_consumed_downstream.py::test_confirming_promotes
 MP-6,tests/integration/test_map_consumed_downstream.py::test_reconcile_oracle_bisect_read_confirmed_map,passed
 MP-6,tests/unit/test_mapping_persist.py::test_missing_sidecar_is_empty_map,passed
 MP-6,tests/unit/test_mapping_persist.py::test_sidecar_roundtrip_human_readable,passed
+MX-1,tests/integration/test_engineer_workflow_e2e.py::test_mixed_precision_module_bit_exact,passed
 NF-1,tests/unit/test_perf.py::test_audit_500_statements_under_one_second,passed
 NF-2,tests/unit/test_perf.py::test_golden_model_throughput,passed
 NF-3,tests/gui/test_main_window.py::test_cold_start_under_two_seconds,passed
 NF-4,tests/gui/test_main_window.py::test_malformed_input_never_crashes,passed
 NF-4,tests/gui/test_main_window.py::test_problem_shows_toast_not_dialog,passed
+NF-4,tests/gui/test_ux.py::test_problem_toast_click_opens_console,passed
+RP-1,tests/gui/test_ux.py::test_ranges_view_propagates_and_flags,passed
 RP-1,tests/unit/test_ranges.py::TestPropagate::test_missing_input_range_is_error,passed
 RP-1,tests/unit/test_ranges.py::TestPropagate::test_near_zero_divisor_hazard,passed
 RP-1,tests/unit/test_ranges.py::TestPropagate::test_overflow_flagged_at_configured_format,passed
 RP-1,tests/unit/test_ranges.py::TestPropagate::test_per_node_ranges_and_bits,passed
 RP-1,tests/unit/test_ranges.py::TestPropagate::test_sqrt_chain,passed
 RP-2,tests/unit/test_ranges.py::test_affine_tighter_on_correlated_expression,passed
+RP-3,tests/gui/test_ux.py::test_ranges_view_recommend_and_adopt,passed
 RP-3,tests/unit/test_ranges.py::test_recommend_format_meets_budget_empirically,passed
 RP-4,tests/unit/test_ranges_measured.py::test_measured_range_from_snapshot,passed
 RP-4,tests/unit/test_ranges_measured.py::test_three_way_declared_affine_measured_labeled,passed
@@ -278,6 +283,7 @@ UI-9,tests/gui/test_density.py::test_density_toggle_changes_sizing,passed
 VT-1,tests/property/test_dag_differential.py::test_random_dag_codegen_matches_golden,passed
 VT-1,tests/property/test_dag_differential.py::test_skipped_without_verilator,passed
 VT-2,tests/property/test_dag_differential.py::test_failing_case_shrinks_to_minimal_dag,passed
+VX-1,tests/integration/test_engineer_workflow_e2e.py::test_failure_artifacts_and_replay,passed
 VZ-1,tests/gui/test_polish.py::test_slack_overlay_toggle,passed
 VZ-1,tests/unit/test_viz.py::test_critical_path_and_dividers_marked,passed
 VZ-1,tests/unit/test_viz.py::test_timeline_axis_is_cycles,passed
