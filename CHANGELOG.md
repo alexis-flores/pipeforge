@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.2.1 — 2026-07-07
 
 - **WS-8 Workspace data cards**: the Workspace view's new Data tab renders one
   card per snapshot variable — sparklines (area fill, zero-line, min/max) for
