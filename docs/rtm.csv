@@ -132,6 +132,7 @@ FE-4,tests/unit/test_frontend.py::TestSpans::test_dag_nodes_carry_spans,passed
 FE-4,tests/unit/test_frontend.py::TestSpans::test_expression_spans_cover_source_text,passed
 FE-4,tests/unit/test_frontend.py::TestSpans::test_statement_span,passed
 FE-5,tests/unit/test_frontend.py::TestDefUse::test_loop_feedback,passed
+FN-1,tests/integration/test_streaming_e2e.py::test_local_functions_survive_the_whole_loop,passed
 FV-1,tests/unit/test_formal.py::test_formal_project_generation,passed
 FV-2,tests/unit/test_formal.py::test_missing_tools_disable_formal,passed
 FX-1,tests/unit/test_fxp_ops.py::TestFxType::test_fx_wrapper,passed
@@ -219,6 +220,7 @@ RP-4,tests/unit/test_ranges_measured.py::test_measured_range_from_snapshot,passe
 RP-4,tests/unit/test_ranges_measured.py::test_three_way_declared_affine_measured_labeled,passed
 RP-5,tests/unit/test_ranges_measured.py::test_measured_tightens_recommendation_labeled_observed,passed
 RP-5,tests/unit/test_ranges_measured.py::test_static_only_mode_stays_conservative,passed
+SD-1,tests/integration/test_streaming_e2e.py::test_fir_with_delay_taps_bit_exact,passed
 SL-1,tests/unit/test_svlint.py::test_backend_reported_and_fallback_works,passed
 SL-1,tests/unit/test_svlint.py::test_backends_agree_on_corpus[bad_data_reset.sv],passed
 SL-1,tests/unit/test_svlint.py::test_backends_agree_on_corpus[bad_missing_pipe.sv],passed
@@ -262,7 +264,8 @@ TH-5,tests/unit/test_theme_tokens.py::test_bundled_alternates_present_and_valid,
 TH-7,tests/gui/test_typography.py::test_type_scale_hierarchy_applied,passed
 TL-1,tests/integration/test_backend_verilator_native.py::test_native_backend_bit_identical_to_cocotb,passed
 TL-1,tests/integration/test_cli_cosim.py::test_cli_cosim_native_backend_json,passed
-TL-1,tests/unit/test_backend_select.py::test_active_harness_backend_reported,passed
+TL-1,tests/unit/test_backend_select.py::test_explicit_backend_wins,passed
+TL-2,tests/unit/test_backend_select.py::test_auto_prefers_whatever_is_installed,passed
 TL-2,tests/unit/test_svlint_verible.py::test_verible_backend_reported,passed
 TL-2,tests/unit/test_svlint_verible.py::test_verible_cst_backend_parses_convention_file,passed
 UI-1,tests/gui/test_main_window.py::test_sidebar_has_eight_capabilities_plus_settings,passed

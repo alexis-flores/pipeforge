@@ -26,10 +26,11 @@ with every matching delay computed. When RTL and model disagree, it tells you
 3. [Five-minute tour](#five-minute-tour)
 4. [Concepts you need](#concepts-you-need)
 5. [The CLI, command by command](#the-cli-command-by-command)
-   - [audit](#cli-audit) · [codegen](#cli-codegen) · [lint](#cli-lint) ·
-     [ranges](#cli-ranges) · [dse](#cli-dse) · [cosim](#cli-cosim) ·
-     [synth](#cli-synth) · [export-tb](#cli-export-tb) · [report](#cli-report) ·
-     [oracle](#cli-oracle) · [reconcile](#cli-reconcile) · [map](#cli-map) ·
+   - [audit](#cli-audit) · [optimize](#cli-optimize) · [codegen](#cli-codegen) ·
+     [lint](#cli-lint) · [ranges](#cli-ranges) · [dse](#cli-dse) ·
+     [cosim](#cli-cosim) · [ci](#cli-ci) · [synth](#cli-synth) ·
+     [export-tb](#cli-export-tb) · [report](#cli-report) · [oracle](#cli-oracle) ·
+     [reconcile](#cli-reconcile) · [map](#cli-map) ·
      [traceability](#cli-traceability) · [matlab](#cli-matlab) · [demos](#cli-demos)
 6. [The GUI, view by view](#the-gui-view-by-view)
 7. [End-to-end workflows](#end-to-end-workflows)
@@ -66,6 +67,9 @@ using one shared cost model so every answer is comparable to every other.
 | Know how many DSP48s / LUTs this costs | [`audit --resources`](#cli-audit) | a `.m` file |
 | Sanity-check cells + logic depth before Vivado | [`synth`](#cli-synth) | a `.sv` + yosys |
 | Spend fewer bits where ranges prove it's safe | [`codegen --mixed`](#cli-codegen) | a `.m` + input ranges |
+| Apply the findings' rewrites automatically | [`optimize`](#cli-optimize) | a `.m` file |
+| Run the whole gate from one file | [`ci`](#cli-ci) | a `.pipeforge.toml` sidecar |
+| Build a filter (z⁻¹ taps) | [`delay(x)`](#the-matlab-subset-pipeforge-understands) | a `.m` file |
 | Drop the module into an AXI-Stream design | [`codegen --axis`](#cli-codegen) | a `.m` file |
 | Gate pull requests on lint + cosim | [SARIF/JUnit outputs](docs/ci.md) | CI + Verilator |
 | Attach one reviewable artifact to a design review | [`report`](#cli-report) | a `.m` file |
@@ -639,8 +643,9 @@ For hand-written RTL you usually just add `--bisect` (no probes) and let the tra
 fallback localize it; probes are the robust path for generated RTL.
 
 **Options:**
-- `--backend verilator` — cocotb-free native harness (only Verilator needed);
-  bit-identical to cocotb.
+- `--backend auto|cocotb|verilator` — auto (default) picks cocotb when it is
+  importable and otherwise the cocotb-free native harness, so a Verilator-only
+  machine just works; both backends are bit-identical.
 - `--cadence continuous|gapped|single|restart` — valid-driving pattern; comparison
   stays valid-gated regardless.
 - `--vectors N` — stimulus count (default 256).
@@ -840,6 +845,40 @@ sit within an LSB or two at sensible SCALEs.
 **Expect:** the first snapshot after a cold MATLAB start can take seconds (a
 warm/kept-alive session, configured in the GUI, drops this to ~0.1 s). Missing or
 unreachable MATLAB → exit 3 with the list of candidates it tried.
+
+---
+
+### <a id="cli-optimize"></a>`optimize` — apply the findings, keep the source readable
+
+**Helps you:** stop hand-applying the auditor's rewrites.
+
+```sh
+pipeforge-cli optimize model.m -o model_opt.m     # or --in-place
+```
+
+Applies RECIP, CDIV, SERDIV, POW, and CSE to the MATLAB *text*: rewritten
+statements carry a `% pipeforge:` marker, untouched lines stay byte-identical.
+The report is deliberately honest: critical-path delta, divider delta, and a
+per-output accuracy comparison (these rewrites move fixed-point rounding — the
+optimized pipeline is usually *more* accurate, but the numbers say so). When
+divisions were parallel, RECIP trades a few cycles of depth for a divider of
+area, and the report says that too. Also in the GUI: **Write optimized .m…**
+in the Audit view.
+
+---
+
+### <a id="cli-ci"></a>`ci` — the whole gate from one sidecar
+
+**Helps you:** gate a PR with a single command and a reviewed config file.
+
+```sh
+pipeforge-cli ci model.pipeforge.toml [--junit-xml cosim.xml] [--sarif lint.sarif]
+```
+
+Reads the design's `.pipeforge.toml` sidecar (the GUI writes it as you work:
+declared ranges, WIDTH/SCALE, the cosim setup) and runs audit → ranges → lint →
+cosim, failing on overflow/hazards, lint findings, or a cosim mismatch — exit 1;
+missing simulation tools exit 3. See [docs/ci.md](docs/ci.md).
 
 ---
 
@@ -1097,7 +1136,36 @@ unary minus; transpose `'` / `.'`; parentheses; comments `%`; line continuations
 operands*; matrix literals `[ ... ]` as opaque concatenation; simple `for` loops
 (for feedback detection); `reshape`; and these functions:
 
-`sqrt abs max min norm sumsqr cross dot vecnorm transpose ones zeros`
+`sqrt abs max min norm sumsqr cross dot vecnorm transpose ones zeros delay`
+
+**Local functions (FN-1):** scripts may define `function out = name(args) … end`
+after the script body (standard MATLAB). Calls are inlined at every call site
+with hygienic renaming — nested calls work; recursion, multi-output *call sites*,
+and bodies that reach outside their parameters are skipped-and-reported. Inlined
+costs are attributed to the call site's line.
+
+**`delay(x)` — z⁻¹ unit delay (SD-1):** the previous sample of `x`, enabling FIR
+taps, moving averages, and other streaming state:
+
+```matlab
+x1 = delay(x);          % x[k-1]
+x2 = delay(x1);         % x[k-2]
+y  = 0.5.*x + 0.25.*x1 + 0.25.*x2;   % 3-tap FIR — cosim proves it bit-exact
+```
+
+It costs one register and — deliberately — zero schedule cycles: in the slot
+algebra `signal_m at clock c carries sample (c−m)`, a register that also
+advanced the stage number would be sample-transparent (that is exactly what a
+`` `PIPE`` is). State assumes gapless streaming (the nkMatlib contract), so
+co-simulation of stateful designs requires the continuous cadence. To run the
+same script in MATLAB, add this local function:
+
+```matlab
+function y = delay(x)
+  persistent s; if isempty(s), s = zeros(size(x)); end
+  y = s; s = x;
+end
+```
 
 Everything else — `if`/`while` bodies, strings, comparisons, unknown functions,
 non-constant exponents — is **skipped and reported** with its line and reason.
@@ -1117,8 +1185,13 @@ the equivalent app-config dir). Deleting it yields a clean first run.
 | `matlab_cache/` | cached workspace snapshots (keyed by script/setup mtimes) |
 | `matlab_work/` | generated `pf_query.m` + raw snapshot JSON (home-shared with containers) |
 
-Project sidecars: `pipeforge.map.json` (the MATLAB↔RTL correspondence map) lives
-next to your design, not in the config dir — it's part of the project.
+Project sidecars live next to your design, not in the config dir — they are
+part of the project: `pipeforge.map.json` (the MATLAB↔RTL correspondence map)
+and `<design>.pipeforge.toml` (PJ-1: ranges, WIDTH/SCALE, cosim configuration,
+device family — written automatically when you propagate ranges or run a
+co-simulation, restored whenever the design reopens, and consumed whole by
+`pipeforge-cli ci <design>.pipeforge.toml`, which runs audit + ranges + lint +
+cosim as one CI gate with `--junit-xml`/`--sarif` outputs).
 
 Environment variables: `PIPEFORGE_MATLAB` (MATLAB command override),
 `XDG_CONFIG_HOME` (relocates the config dir), `QT_QPA_PLATFORM=offscreen`
