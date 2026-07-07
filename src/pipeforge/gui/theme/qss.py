@@ -91,6 +91,27 @@ QLabel#viewTitle {{ font-size: {FONT_DISPLAY}px; font-weight: 300; font-style: n
 QLabel#sectionTitle {{ font-size: {FONT_TITLE}px; font-weight: 600; }}
 QLabel#muted {{ color: {t["textSecondary"]}; font-size: {FONT_SMALL}px; }}
 QLabel#dataValue {{ font-family: {MONO_FONTS}; font-size: {FONT_BODY}px; }}
+/* UX-1 toasts: kind-accented left bar, elevated card */
+QFrame#toastSuccess, QFrame#toastInfo, QFrame#toastWarning, QFrame#toastError {{
+    background: {t["surfaceElevated"]}; border: 1px solid {t["border"]};
+    border-radius: 8px;
+}}
+QFrame#toastSuccess {{ border-left: 3px solid {t["success"]}; }}
+QFrame#toastInfo {{ border-left: 3px solid {t["accent"]}; }}
+QFrame#toastWarning {{ border-left: 3px solid {t["warning"]}; }}
+QFrame#toastError {{ border-left: 3px solid {t["error"]}; }}
+QFrame#toastSuccess QLabel#toastIcon {{ color: {t["success"]}; font-weight: 600; }}
+QFrame#toastInfo QLabel#toastIcon {{ color: {t["accent"]}; font-weight: 600; }}
+QFrame#toastWarning QLabel#toastIcon {{ color: {t["warning"]}; font-weight: 600; }}
+QFrame#toastError QLabel#toastIcon {{ color: {t["error"]}; font-weight: 600; }}
+QLabel#toastAction {{ color: {t["accent"]}; font-size: {FONT_SMALL}px; font-weight: 600; }}
+/* UX-2 activity panel */
+QLabel#activityTitle {{ font-weight: 600; }}
+QLabel#dot_success {{ color: {t["success"]}; }}
+QLabel#dot_info {{ color: {t["accent"]}; }}
+QLabel#dot_warning {{ color: {t["warning"]}; }}
+QLabel#dot_error {{ color: {t["error"]}; }}
+QPushButton#activityOpen {{ padding: 1px 10px; font-size: {FONT_SMALL}px; }}
 QLabel#chip {{
     background: {t["surfaceElevated"]}; border: 1px solid {t["border"]};
     border-radius: 9px; padding: 2px 10px; font-size: {FONT_SMALL}px;

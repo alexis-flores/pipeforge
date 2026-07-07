@@ -72,10 +72,16 @@ class _CosimJob(QRunnable):
 
 
 class CosimView(QWidget):
-    def __init__(self, workspace: Workspace, parent: QWidget | None = None) -> None:
+    def __init__(
+        self,
+        workspace: Workspace,
+        parent: QWidget | None = None,
+        navigate: object = None,
+    ) -> None:
         super().__init__(parent)
         self.setObjectName("view")
         self._ws = workspace
+        self._navigate = navigate
 
         title = QLabel("Co-simulation")
         title.setObjectName("viewTitle")
@@ -348,14 +354,53 @@ class CosimView(QWidget):
         self._elapsed.stop()
         self.run_btn.setEnabled(True)
         self.summary.setText(message)
+        self._ws.toast("error", message.splitlines()[0])
+        self._ws.log_activity("error", "Co-simulation could not run", message)
         self._sync_reqs()
 
     def _on_finished(self, result: object) -> None:
         self._elapsed.stop()
         self.run_btn.setEnabled(True)
         self.show_result(result)
+        self._notify_result(result)
         self._ws.cosimFinished.emit(result)
         self._sync_reqs()
+
+    def _notify_result(self, result: object) -> None:
+        """UX-1/2: the verdict as a toast (with a Bisection shortcut on FAIL)
+        and a permanent activity entry with the numbers."""
+        from pipeforge.core.cosim.runner import CosimResult
+
+        if not isinstance(result, CosimResult):
+            return
+        dut = Path(str(self._ws.sv_path)).name if self._ws.sv_path else "DUT"
+        if result.passed:
+            total = sum(o.compared for o in result.outputs)
+            self._ws.toast("success", f"Co-sim PASS — {dut}: {total} vectors bit-exact")
+            self._ws.log_activity(
+                "success",
+                f"Co-simulation PASS — {dut}",
+                f"[{result.harness_backend}] "
+                + "; ".join(f"{o.name}: {o.compared} bit-exact" for o in result.outputs),
+                self._ws.sv_path,
+            )
+            return
+        first = next((o for o in result.outputs if not o.passed), None)
+        headline = (
+            f"Co-sim FAIL — {dut}: {first.name} diverges at vector #{first.first_failure}"
+            if first
+            else f"Co-sim FAIL — {dut}: build or simulation failed"
+        )
+        action = None
+        if self._navigate is not None and result.bisect_report is not None:
+            from pipeforge.gui.widgets.toast import ToastAction
+
+            action = ToastAction("Bisection", lambda: self._navigate("bisect"))  # type: ignore[operator]
+        self._ws.toast("error", headline, action)
+        detail = headline
+        if result.failure_file:
+            detail += f" — replay: {result.failure_file}"
+        self._ws.log_activity("error", f"Co-simulation FAIL — {dut}", detail, self._ws.sv_path)
 
     def show_result(self, result: object) -> None:
         """Render a CosimResult (also called directly in tests)."""

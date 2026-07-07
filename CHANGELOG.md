@@ -1,5 +1,21 @@
 # Changelog
 
+## Unreleased
+
+- **UX-1 action toasts**: every action now answers in the corner — kind-styled
+  (✓ success / ✵ info / ⚠ warning / ✕ error), stacking up to three with a
+  slide-in, and carrying one-click actions where they help (a failing co-sim
+  offers **Bisection ▸**; problems offer **details** → console). Optimize
+  reports what it actually did ("Wrote `x_opt.m` — 48→52 cycles, dividers
+  3→1"), co-sim PASS/FAIL summarizes per-output results, `.mat` loads confirm
+  shape-awareness.
+- **UX-2 Activity panel** (Ctrl+J, View → Toggle Activity): a persistent,
+  newest-first history of everything done this session — files opened,
+  audits (with latency/finding deltas: "(was 48)"), optimizes, generated
+  `.sv`/wrappers, co-sim verdicts, range propagation, sidecar writes — each
+  with a timestamp, kind dot, and an **Open** button for entries that wrote a
+  file. Tabbed with the console; entries mirror to the console log.
+
 ## 0.2.1 — 2026-07-07
 
 - **WS-8 Workspace data cards**: the Workspace view's new Data tab renders one

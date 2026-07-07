@@ -139,6 +139,13 @@ class CodegenView(QWidget):
         if fname:
             Path(fname).write_text(wrapper, encoding="utf-8")
             self.summary.setText(f"wrote {fname} (instantiate it next to {self._module_name()})")
+            self._ws.log_activity(
+                "success",
+                f"AXI-Stream wrapper → {Path(fname).name}",
+                "tvalid/tready with credit backpressure — drops into block designs",
+                fname,
+            )
+            self._ws.toast("success", f"Wrote {Path(fname).name}")
 
     def _synth(self) -> None:
         """Run the yosys estimate off the GUI thread (SY-1)."""
@@ -186,6 +193,8 @@ class CodegenView(QWidget):
     def _on_synth(self, message: str) -> None:
         self.synth_btn.setEnabled(True)
         self.synth_label.setText(message)
+        kind = "success" if message.startswith("synth estimate") else "warning"
+        self._ws.log_activity(kind, f"Synth estimate — {self._module_name()}", message)
 
     def _save(self) -> None:
         if not self._sv:
@@ -197,3 +206,11 @@ class CodegenView(QWidget):
         if fname:
             Path(fname).write_text(self._sv, encoding="utf-8")
             self.summary.setText(f"wrote {fname}")
+            audit = self._ws.audit
+            detail = (
+                f"{audit.total_latency} cycles, {sum(audit.census.values())} instances"
+                if audit is not None
+                else ""
+            )
+            self._ws.log_activity("success", f"Generated → {Path(fname).name}", detail, fname)
+            self._ws.toast("success", f"Wrote {Path(fname).name} — lint it or co-simulate next")

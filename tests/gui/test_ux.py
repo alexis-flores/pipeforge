@@ -192,7 +192,11 @@ def test_tools_dialog_lists_every_probe(window: MainWindow, qtbot: QtBot) -> Non
 def test_problem_toast_click_opens_console(window: MainWindow, qtbot: QtBot) -> None:
     window.workspace.problem.emit("Something went sideways.")
     assert window.toast.isVisible()
-    assert "click for details" in window.toast.text()
+    assert "sideways" in window.toast.text()
+    # UX-1: problems arrive as error-kind toasts carrying a details action
+    toast = window.toast._toasts[-1]
+    assert toast.kind == "error"
+    assert toast.action is not None and toast.action.label == "details"
     assert not window.console_dock.isVisible()
     qtbot.mouseClick(window.toast, Qt.MouseButton.LeftButton)
     assert window.console_dock.isVisible()

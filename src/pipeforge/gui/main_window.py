@@ -153,7 +153,7 @@ class MainWindow(QMainWindow):
         from pipeforge.gui.views.bisection_view import BisectionView
         from pipeforge.gui.views.cosim_view import CosimView
 
-        self.views["cosim"] = CosimView(self.workspace)
+        self.views["cosim"] = CosimView(self.workspace, navigate=self.show_view)
         self.views["bisect"] = BisectionView(self.workspace, navigate=self.show_view)
         from pipeforge.gui.views.codegen_view import CodegenView
         from pipeforge.gui.views.linter_view import LinterView
@@ -332,6 +332,44 @@ class MainWindow(QMainWindow):
         self.console_dock.setWidget(self.console)
         self.addDockWidget(Qt.DockWidgetArea.BottomDockWidgetArea, self.console_dock)
         self.console_dock.hide()
+        # UX-2: the Activity panel — the persistent answer to "what have I done"
+        from pipeforge.gui.widgets.activity_panel import ActivityPanel
+
+        self.activity_dock = QDockWidget("Activity")
+        self.activity_dock.setFeatures(QDockWidget.DockWidgetFeature.NoDockWidgetFeatures)
+        self.activity = ActivityPanel(self.open_path)
+        self.activity_dock.setWidget(self.activity)
+        self.addDockWidget(Qt.DockWidgetArea.BottomDockWidgetArea, self.activity_dock)
+        self.tabifyDockWidget(self.console_dock, self.activity_dock)
+        self.activity_dock.hide()
+        self.workspace.activityLogged.connect(self._on_activity)
+        self.workspace.notifyRequested.connect(self._on_notify)
+
+    def _on_activity(self, entry: object) -> None:
+        from pipeforge.gui.activity import ActivityEntry
+
+        if isinstance(entry, ActivityEntry):
+            self.activity.add(entry)
+            self.log(
+                f"[{entry.when}] {entry.title}" + (f" — {entry.detail}" if entry.detail else "")
+            )
+
+    def _on_notify(self, kind: str, text: str, action: object) -> None:
+        from pipeforge.gui.widgets.toast import ToastAction
+
+        self.toast.push(kind, text, action=action if isinstance(action, ToastAction) else None)
+
+    def toggle_activity(self) -> None:
+        show = not self.activity_dock.isVisible()
+        self.activity_dock.setVisible(show)
+        if show:
+            self.activity_dock.raise_()
+        self.toast.reflow()  # keep the toast stack above the dock
+
+    def show_activity(self) -> None:
+        self.activity_dock.setVisible(True)
+        self.activity_dock.raise_()
+        self.toast.reflow()
 
     # -- menus (every shortcut discoverable, UI-4) -------------------------------
 
@@ -384,6 +422,8 @@ class MainWindow(QMainWindow):
         view_menu.addAction(self.inspector_action)
         self.console_action = self._action("Toggle &Console", "Ctrl+`", self.toggle_console)
         view_menu.addAction(self.console_action)
+        self.activity_action = self._action("Toggle &Activity", "Ctrl+J", self.toggle_activity)
+        view_menu.addAction(self.activity_action)
         view_menu.addSeparator()
         self.palette_action = self._action("Command &Palette…", "Ctrl+K", self.open_palette)
         view_menu.addAction(self.palette_action)
@@ -513,7 +553,13 @@ class MainWindow(QMainWindow):
         fname, _ = QFileDialog.getSaveFileName(self, "Export HTML report", default, "*.html")
         if fname:
             Path(fname).write_text(html, encoding="utf-8")
-            self.toast.show_message(f"Report written: {fname}")
+            self.toast.success(f"Report written — {Path(fname).name}")
+            self.workspace.log_activity(
+                "success",
+                f"Report → {Path(fname).name}",
+                "self-contained HTML: timeline, findings, resources" + (", lint" if lint else ""),
+                fname,
+            )
 
     def open_demos(self) -> None:
         from pipeforge.gui.widgets.demos_dialog import DemosDialog
@@ -531,6 +577,7 @@ class MainWindow(QMainWindow):
             self.open_path(path)
         if entry.view:
             self.show_view(entry.view)
+        self.toast.info(f"Demo: {entry.title}")
 
     def palette_commands(self) -> list[tuple[str, object]]:
         commands: list[tuple[str, object]] = [
@@ -539,6 +586,7 @@ class MainWindow(QMainWindow):
             ("Re-run audit", self.workspace.rerun),
             ("Refresh from MATLAB", self.workspace.refresh_from_matlab),
             ("Toggle console", self.toggle_console),
+            ("Toggle activity", self.toggle_activity),
             ("Toggle inspector", self.toggle_inspector),
             ("Export HTML report…", self.export_report),
             ("Edit fixed-point format…", self.open_format_dialog),

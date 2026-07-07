@@ -58,7 +58,10 @@ ignore = [
 "tests/**" = ["B011"]
 
 [tool.mypy]
-python_version = "3.11"
+# 3.12 target: numpy>=2.3 stubs use `type` statements that do not parse
+# under 3.11 mypy semantics; runtime 3.11 support is held by the CI test
+# matrix, and no 3.12-only syntax exists in src (ruff target enforces).
+python_version = "3.12"
 strict = true
 files = ["src/pipeforge/core"]
 warn_unreachable = true
@@ -73,6 +76,13 @@ ignore_missing_imports = true
 [[tool.mypy.overrides]]
 # scipy and h5py ship no (usable) type stubs; used only by core/workspace (WS-1).
 module = ["scipy", "scipy.*", "h5py", "h5py.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+# numpy >= 2.3 stubs use `type` statements, unparseable under the 3.11 target
+# this project checks against; numpy is data plumbing here (WS-1), skip it.
+module = ["numpy", "numpy.*"]
+follow_imports = "skip"
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

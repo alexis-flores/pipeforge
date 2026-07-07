@@ -87,6 +87,8 @@ class Workspace(QObject):
     densityChanged = pyqtSignal(str)  # 'comfortable' | 'compact' (UI-9)
     cosimFinished = pyqtSignal(object)  # CosimResult — feeds the Bisection view
     rangeFlagsChanged = pyqtSignal(object, object)  # overflow nids, hazard nids (RP GUI)
+    activityLogged = pyqtSignal(object)  # ActivityEntry — the persistent history (UX-2)
+    notifyRequested = pyqtSignal(str, str, object)  # kind, text, ToastAction|None (UX-1)
 
     #: sidecar autosave master switch — tests running on shared fixtures turn
     #: it off so no .pipeforge.toml appears next to repository files (PJ-1)
@@ -103,6 +105,7 @@ class Workspace(QObject):
         self.density = "comfortable"  # timeline density, per session (UI-9)
         self.project: object | None = None  # core.project.Project sidecar (PJ-1)
         self.project_ranges: dict[str, tuple[float, float]] = {}
+        self._audit_metrics: dict[str, tuple[int, int]] = {}  # per-file (cycles, findings)
         self.inspector_collapsed = False  # right inspector collapsed (UI-11)
         self.source = ""
         self.audit: Audit | None = None
@@ -125,6 +128,18 @@ class Workspace(QObject):
     def cost_model(self) -> CostModel:
         return CostModel(self.width, self.scale)
 
+    # -- action feedback (UX-1/UX-2): one call posts history + optional toast ----
+
+    def log_activity(self, kind: str, title: str, detail: str = "", path: object = None) -> None:
+        from pipeforge.gui.activity import ActivityEntry
+
+        self.activityLogged.emit(
+            ActivityEntry(kind=kind, title=title, detail=detail, path=str(path or ""))
+        )
+
+    def toast(self, kind: str, text: str, action: object = None) -> None:
+        self.notifyRequested.emit(kind, text, action)
+
     # -- loading -----------------------------------------------------------
 
     def open_file(self, path: Path) -> None:
@@ -138,6 +153,12 @@ class Workspace(QObject):
             if path.suffix.lower() == ".sv":
                 self.sv_path = path
                 self.fileChanged.emit(str(path))
+                self.log_activity(
+                    "info",
+                    f"Opened {path.name}",
+                    "SystemVerilog DUT — Linter and Co-sim ready",
+                    path,
+                )
                 return
             if path.suffix.lower() == ".mat":
                 self.mat_path = path
@@ -157,11 +178,16 @@ class Workspace(QObject):
                 self._rearm_watcher()
                 self.fileChanged.emit(str(path))
                 if self.snapshot is not None:
-                    self.logMessage.emit(
-                        f"workspace: {path.name} loaded statically — "
-                        f"{len(self.snapshot.variables)} variable(s), shape-aware audit on. "
-                        "Refresh (Ctrl+Shift+M) swaps in a live MATLAB snapshot "
-                        "(adds fi formats)."
+                    n = len(self.snapshot.variables)
+                    self.log_activity(
+                        "success",
+                        f"Loaded {path.name} — no MATLAB needed",
+                        f"{n} variable(s); shape-aware analysis is on. "
+                        "Ctrl+Shift+M swaps in a live snapshot (adds fi formats).",
+                        path,
+                    )
+                    self.toast(
+                        "success", f"{path.name}: {n} variables loaded — audits are now shape-aware"
                     )
                 self._reaudit()  # a shape-aware re-audit when a .m is open
                 return
@@ -180,6 +206,7 @@ class Workspace(QObject):
         self._load_sidecar(path)
         self._rearm_watcher()
         self.fileChanged.emit(str(path))
+        self.log_activity("info", f"Opened {path.name}", path=path)
         self._reaudit()
 
     # -- project sidecar (PJ-1): restore/persist per-design working state -------
@@ -231,6 +258,12 @@ class Workspace(QObject):
         project.ranges = dict(self.project_ranges)
         try:
             save_project(project, target)
+            self.log_activity(
+                "info",
+                f"Saved {target.name}",
+                "ranges, format, and cosim config travel with the design",
+                target,
+            )
         except OSError as exc:
             self.logMessage.emit(f"project: could not save sidecar — {exc}")
 
@@ -275,6 +308,21 @@ class Workspace(QObject):
         except Exception as exc:
             self.audit = None
             self.problem.emit(f"Audit failed: {exc}")
+        if self.audit is not None:
+            # UX-2: audits log when their headline numbers move — the panel
+            # becomes a running record of how edits changed the pipeline
+            key = str(self.m_path)
+            metrics = (self.audit.total_latency, len(self.audit.findings))
+            previous = self._audit_metrics.get(key)
+            if previous != metrics:
+                was = f" (was {previous[0]})" if previous is not None else ""
+                self._audit_metrics[key] = metrics
+                self.log_activity(
+                    "info",
+                    f"Audited {self.m_path.name} @ {self.width}/{self.scale}",
+                    f"{metrics[0]} cycles critical path{was}, {metrics[1]} finding(s)",
+                    self.m_path,
+                )
         self.auditChanged.emit(self.audit)
 
     # -- MATLAB bridge (manual refresh only; MATLAB start is slow) ----------

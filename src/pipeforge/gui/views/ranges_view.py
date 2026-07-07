@@ -290,6 +290,18 @@ class RangesView(QWidget):
         )
         overflow = len(report.overflow_nodes)
         hazards = len(report.hazard_nodes)
+        if overflow or hazards:
+            self._ws.toast(
+                "warning",
+                f"Ranges: {overflow} overflow risk(s), {hazards} ÷-near-zero hazard(s) "
+                f"at {report.fmt_width}/{report.fmt_scale} — badges are on the timeline",
+            )
+        self._ws.log_activity(
+            "warning" if (overflow or hazards) else "success",
+            f"Ranges propagated @ {report.fmt_width}/{report.fmt_scale}",
+            f"{overflow} overflow, {hazards} ÷-near-zero — LEFT ≥ {report.required_left} needed; "
+            "declared ranges saved to the sidecar",
+        )
         fmt = f"{report.fmt_width}/{report.fmt_scale}"
         verdict = (
             f"⚠ {overflow} value(s) can overflow {fmt}" if overflow else f"✓ no overflow at {fmt}"

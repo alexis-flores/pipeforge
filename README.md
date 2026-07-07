@@ -1021,6 +1021,14 @@ sidebar of capabilities in workflow order + a main panel + a right-hand
 Inspector + a bottom console. You can also **drag and drop** any `.m`/`.sv`/`.mat`
 onto the window.
 
+Every action answers: **toasts** slide into the corner, color-coded by kind
+(✓ success / ✵ info / ⚠ warning / ✕ error) and carrying one-click follow-ups —
+a failing co-sim's toast offers **Bisection ▸**, an error offers **details** →
+console. The **Activity panel** (Ctrl+J, tabbed with the console) keeps the
+session's history — every open, audit (with deltas), optimize, generated file,
+co-sim verdict — timestamped, with an **Open** button wherever a file was
+written.
+
 ```
 ┌────────── File  View  Run  Help ─────────────────────────────┐
 ├──────┬────────────────────────────────────────┬─────────────┤
@@ -1144,6 +1152,7 @@ input ranges rendered as SVA `assume`s (library API
 | Ctrl+R | re-run the current analysis |
 | Ctrl+K | command palette (type-to-filter every action and theme) |
 | Ctrl+` | toggle the console |
+| Ctrl+J | toggle the Activity panel (session history of every action) |
 | Ctrl+Shift+I | toggle the Inspector |
 | Ctrl+Shift+M | refresh from MATLAB |
 | Ctrl+Shift+D | open the Demos window |

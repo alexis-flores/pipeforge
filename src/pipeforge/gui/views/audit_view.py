@@ -101,10 +101,20 @@ class AuditView(QWidget):
             return
         Path(fname).write_text(result.source, encoding="utf-8")
         worst = max((a.max_delta for a in result.accuracy), default=0.0)
-        self._ws.logMessage.emit(
-            f"optimize: {len(result.rewrites)} rewrite(s), critical path "
-            f"{result.latency_before} -> {result.latency_after} cycles, "
-            f"worst output |Δ| {worst:.3g} vs the original"
+        tags = ", ".join(sorted({r.tag for r in result.rewrites}))
+        self._ws.log_activity(
+            "success",
+            f"Optimized → {Path(fname).name}",
+            f"{len(result.rewrites)} rewrite(s) [{tags}] — critical path "
+            f"{result.latency_before}→{result.latency_after} cycles, dividers "
+            f"{result.dividers_before}→{result.dividers_after}, worst output "
+            f"|Δ| {worst:.3g}",
+            fname,
+        )
+        self._ws.toast(
+            "success",
+            f"Wrote {Path(fname).name} — {result.latency_before}→{result.latency_after} "
+            f"cycles, dividers {result.dividers_before}→{result.dividers_after}",
         )
         self._ws.open_file(Path(fname))  # show the improvement immediately
 
